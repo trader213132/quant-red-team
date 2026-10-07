@@ -28,3 +28,14 @@ def test_config_hash_is_stable_and_sensitive(tmp_path):
 def test_code_hash_is_hex():
     h = code_hash()
     assert len(h) == 64 and int(h, 16) >= 0
+
+
+def test_code_hash_ignores_line_endings(tmp_path, monkeypatch):
+    import qrt.config as config
+    (tmp_path / "a.py").write_bytes(b"x = 1\nprint(x)\n")
+    monkeypatch.setattr(config, "PACKAGE_DIR", tmp_path)
+    lf = config.code_hash()
+    (tmp_path / "a.py").write_bytes(b"x = 1\r\nprint(x)\r\n")
+    assert config.code_hash() == lf
+    (tmp_path / "a.py").write_bytes(b"x = 2\nprint(x)\n")
+    assert config.code_hash() != lf

@@ -93,7 +93,5 @@ def code_hash() -> str:
     digest = hashlib.sha256()
     for path in sorted(PACKAGE_DIR.rglob("*.py")):
         digest.update(path.relative_to(PACKAGE_DIR).as_posix().encode("utf-8"))
-        digest.update(path.read_bytes().replace(b"
-", b"
-"))
+        digest.update(path.read_bytes().replace(b"\r\n", b"\n"))
     return digest.hexdigest()
