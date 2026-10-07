@@ -86,7 +86,7 @@ Each run folder gets `report.html` (open it in a browser), `matrix.csv`, `auc.cs
 | `qrt/audits/` | The fourteen audits, by tier |
 | `qrt/experiment.py`, `matrix.py`, `report.py` | Run, aggregate and report |
 | `qrt/realdata.py` | Loads real ETF data into the same market object as the simulator |
-| `tests/` | 93 tests, including the causality checks that prove the planted bugs are real |
+| `tests/` | 94 tests, including the causality checks that prove the planted bugs are real |
 | `site/` | The website (static HTML/JS); data exported by `scripts/export_site_data.py`, deployed by `.github/workflows/pages.yml` |
 | `results/final/`, `results/final-v2/` | The two locked runs: every audited claim, the oracle table, the matrix and the report |
 | `docs/paper/` | The paper: HTML template, generated figures, and the PDF |

@@ -32,7 +32,7 @@ from qrt.audits import TIER  # noqa: E402
 from qrt.workflows import build_researchers  # noqa: E402
 
 FINAL = ROOT / "results" / "final"
-TESTS = 93   # fast + slow test count at the time of the v2 release
+TESTS = 94   # fast + slow test count at release
 OUT = ROOT / "site" / "data"
 
 MARKET_OF = {"honest_null": "null", "honest_trend": "trend", "miner_null": "null", "miner_trend": "trend",

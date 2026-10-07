@@ -72,7 +72,7 @@ Many tests exist to tell whether a profitable backtest reflects a real edge or t
 </ul>
 <p>Thresholds were fixed before any run: α = 5%, PBO &gt; 0.5, DSR &lt; 0.95, and re-run attacks reject at t &lt; 1.645.</p>
 <h3>3.4 Protocol and verification</h3>
-<p>The code has 91 automated tests. Causality tests show that the honest engine never uses future data and that the two planted look-ahead bugs really do. Size tests confirm that the Reality Check, SPA and the placebo reject at most about 5% of claims when there is no edge. During development the SPA, studentised with a block-bootstrap variance, was oversized (11.7% at α = 5%), so it was switched to the sample standard deviation (6.3%). Debugging used a separate seed. The final configuration and code were hashed before a single locked run with 300 claims per workflow, drawn from 30,799 simulated markets.</p>
+<p>The code has 94 automated tests. Causality tests show that the honest engine never uses future data and that the two planted look-ahead bugs really do. Size tests confirm that the Reality Check, SPA and the placebo reject at most about 5% of claims when there is no edge. During development the SPA, studentised with a block-bootstrap variance, was oversized (11.7% at α = 5%), so it was switched to the sample standard deviation (6.3%). Debugging used a separate seed. The final configuration and code were hashed before a single locked run with 300 claims per workflow, drawn from 30,799 simulated markets.</p>
 
 <h2>4 Results</h2>
 <figure><img src="figures/matrix-v1.svg" alt="Detection matrix">
