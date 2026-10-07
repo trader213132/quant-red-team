@@ -88,9 +88,12 @@ def config_hash(cfg: Config) -> str:
 
 
 def code_hash() -> str:
-    """SHA-256 over every source file in the package: pins exactly which code produced a result."""
+    """SHA-256 over every source file in the package: pins exactly which code produced a result.
+    Line endings are normalised, so a Windows checkout and a Linux clone hash the same (see D21)."""
     digest = hashlib.sha256()
     for path in sorted(PACKAGE_DIR.rglob("*.py")):
         digest.update(path.relative_to(PACKAGE_DIR).as_posix().encode("utf-8"))
-        digest.update(path.read_bytes())
+        digest.update(path.read_bytes().replace(b"
+", b"
+"))
     return digest.hexdigest()

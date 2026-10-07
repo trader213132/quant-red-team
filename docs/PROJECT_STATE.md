@@ -17,6 +17,7 @@ website are all finished and published.
 | Paper | `docs/paper/quant-red-team.pdf` (also `site/paper/`) | 6 pages (D20) |
 | Website | <https://trader213132.github.io/quant-red-team/> | All exhibits A–J, v1/v2 toggle |
 | Tests | `pytest -m "slow or not slow"` | 93 pass |
+| Reproducibility | `scripts/verify_runs.py` | 60/60 sampled locked claims reproduce exactly (D21) |
 
 **To rebuild after any change:**
 1. `scripts/real_case_study.py`
