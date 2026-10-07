@@ -12,6 +12,12 @@ written up in `docs/RESULTS.md`.**
 - The final run took 9 minutes on 16 cores: 3,000 audited claims from 30,799 simulated markets.
 - The report is `results/final/report.html` (self-contained, so it opens in any browser).
 - After the run, the report gained a 20% false-alarm cap in its access table (D12, presentation only).
+- **Public repo:** <https://github.com/trader213132/quant-red-team>. **Website:**
+  <https://trader213132.github.io/quant-red-team/> (`site/`, deployed by `.github/workflows/pages.yml` on
+  every push to main).
+  - To regenerate the site data after any change to results:
+    `.venv/Scripts/python.exe scripts/export_site_data.py`.
+  - To preview locally: `python -m http.server 8790 --directory site`.
 
 Possible next steps (v2; each needs a new config and a DECISIONS entry, and must never touch `final`):
 1. **Real data:** run the re-run attacks (delay, cost×2, placebo) on real ETF data with known-bad and
@@ -28,7 +34,7 @@ Possible next steps (v2; each needs a new config and a DECISIONS entry, and must
 
 - **Ownership:** Claude writes all the code (D2). Keep the docs and report educational, because the user
   must be able to explain every result.
-- **No git commits** unless the user asks. The repo is initialised but has no commits.
+- **Git:** the repo is public on GitHub. Commit and push only when the user asks, or when it's needed for a task they asked for (like updating the website).
 - **Never re-run the final, and never tune anything after seeing final results.** Any change after the
   final run means a new versioned config and a new run, both logged in DECISIONS.
 - **Environment:** Python 3.14 venv with `--system-site-packages`, which needs numpy, scipy and pytest
