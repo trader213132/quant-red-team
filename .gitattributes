@@ -1,0 +1,3 @@
+# Keep LF everywhere so the code hash recorded for the final run reproduces on any OS.
+* text=auto eol=lf
+*.png binary
