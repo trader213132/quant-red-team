@@ -1,0 +1,7 @@
+__pycache__/
+.pytest_cache/
+*.egg-info/
+.venv/
+# Dev runs are never quoted; only the locked final run is published as evidence.
+results/*
+!results/final/

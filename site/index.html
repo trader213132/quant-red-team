@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quant Red Team — which audits catch fake trading edges?</title>
+<meta name="description" content="A ground-truth benchmark: 10 simulated researchers (honest and flawed), 14 audits, 3,000 claims. Which tests catch which kinds of fake alpha, and how much access does an auditor need?">
+<meta property="og:title" content="Quant Red Team — the detection matrix">
+<meta property="og:description" content="Which audits catch which kinds of fake trading edge? A simulated benchmark with a known ground truth.">
+<meta name="theme-color" content="#17140e">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='13' fill='none' stroke='%23b8321c' stroke-width='3'/><circle cx='16' cy='16' r='5' fill='%23b8321c'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Big+Shoulders+Stencil+Display:wght@800;900&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script>
+  // Apply a saved theme before first paint (per-viewer convenience only).
+  try { const t = localStorage.getItem("qrt-theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+</head>
+<body>
+<!-- Rubber-stamp edge roughness -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="rough"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7"/><feDisplacementMap in="SourceGraphic" scale="3"/></filter>
+</svg>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="wordmark" href="#top"><span class="dot"></span>Quant Red Team</a>
+    <nav class="nav" aria-label="Sections">
+      <a href="#setup">Setup</a><a href="#suspects">Suspects</a><a href="#lineup">Lineup</a><a href="#exhibits">Exhibits</a><a href="#findings">Findings</a><a href="#method">Method</a>
+    </nav>
+    <button class="iconbtn" id="theme" type="button" aria-label="Switch colour theme">◐ <span>Auto</span></button>
+    <a class="iconbtn" id="repo" href="https://github.com/trader213132/quant-red-team">GitHub ↗</a>
+  </div>
+</header>
+
+<main id="top">
+<!-- ============================== HERO ============================== -->
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-grid">
+      <div>
+        <div class="casefile rise"><span class="tag red">Case file 05 · Look-ahead</span><span class="tag ink">Simulated market · zero edge</span></div>
+        <h1 class="rise">This backtest made <span class="strike" data-bind="heroGain">+935%</span>.<span class="small">Its real edge was zero.</span></h1>
+        <p class="lede rise">Most people who try quant build a bot that hunts for trading edges. <b>Quant Red Team does the opposite.</b> It plants fake edges on purpose, then measures which audits catch them, how often each one wrongly rejects a real edge, and how much access an auditor needs.</p>
+      </div>
+      <div class="hero-chart rise">
+        <div class="chart-head">
+          <div><div class="chart-title">Growth of £1, same rule, same data</div><div class="chart-sub">Momentum (60-day) on 10 simulated assets with no edge · 9 years</div></div>
+        </div>
+        <div class="legend" id="hero-legend"></div>
+        <div class="chart draw" id="hero-chart" role="img" aria-label="Equity curves: the look-ahead backtest grows to about ten times its starting value while the same rule traded honestly ends below where it started."></div>
+        <div class="stamp" id="stamp"><b>Falsified</b><span>Delay attack · <em class="lc">t = <span data-bind="heroDelay">−1.02</span></em></span></div>
+        <details class="data"><summary>Data table</summary><div id="hero-table"></div></details>
+      </div>
+    </div>
+    <div class="stats reveal" id="stats"></div>
+  </div>
+</section>
+
+<!-- ============================== QUESTION ============================== -->
+<section class="block" id="question">
+  <div class="wrap sec-head reveal">
+    <div class="exhibit">01 · The problem<small>Why simulate?</small></div>
+    <div>
+      <h2>Backtests lie.<br>Nobody can grade the lie detectors.</h2>
+      <p class="lede">A backtest can look brilliant because you tried 120 variants and kept the best, because your code peeked at the future, because you forgot trading costs, or because your data only contains the companies that survived.</p>
+      <p>Statisticians have built many tests to catch this: the Deflated Sharpe Ratio, the Probability of Backtest Overfitting, White's Reality Check, Hansen's SPA, holdouts and placebo re-runs. But in real markets nobody knows which strategies truly work, so nobody can score the tests. You can't measure a detector without an answer key.</p>
+      <p class="note">So this project builds the answer key. Every market is simulated, every flaw is planted on purpose, and an oracle knows the true edge of every claim.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== SETUP ============================== -->
+<section class="block" id="setup">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="exhibit">02 · The setup<small>Five moving parts</small></div>
+      <div>
+        <h2>Plant the crime.<br>Then send in the detectives.</h2>
+        <p>One experiment, run once with its rules fixed in advance. The config and code were hashed before the final run; the results are locked.</p>
+      </div>
+    </div>
+    <div class="pipeline reveal">
+      <div class="step"><div class="n">1</div><h3>Markets</h3><p>Four simulated markets with fat tails and volatility clustering (GARCH, Student-t). The truth of each is known: no edge, a real trend, a reversal that costs destroy, or crashing stocks that get delisted.</p></div>
+      <div class="step"><div class="n">2</div><h3>Researchers</h3><p>Ten complete research processes. Two are honest; eight carry one classic flaw each. Each turns a dataset into a claim.</p></div>
+      <div class="step"><div class="n">3</div><h3>Claims</h3><p>Only backtests with t ≥ 2 count as claims, because flawed research is only ever shown when it looks good. 300 claims per researcher.</p></div>
+      <div class="step"><div class="n">4</div><h3>Audits</h3><p>Fourteen audits in three access tiers judge every claim: <i>credible</i> or <i>rejected</i>.</p></div>
+      <div class="step"><div class="n">5</div><h3>Oracle</h3><p>The ground truth: the same rule, implemented honestly, run on ~2,300 years of fresh data from the same market. A true Sharpe ≤ 0.05 means fake; ≥ 0.20 means real.</p></div>
+    </div>
+    <div class="markets reveal" id="markets"></div>
+  </div>
+</section>
+
+<!-- ============================== SUSPECTS ============================== -->
+<section class="block" id="suspects">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="exhibit">03 · The suspects<small>10 researchers</small></div>
+      <div>
+        <h2>Ten researchers.<br>Eight are lying.</h2>
+        <p>Each card shows the average Sharpe ratio the researcher <i>claimed</i> and the <i>true</i> Sharpe the oracle measured for the same rules.</p>
+      </div>
+    </div>
+    <div class="suspects reveal" id="suspect-grid"></div>
+  </div>
+</section>
+
+<!-- ============================== DETECTIVES ============================== -->
+<section class="block" id="detectives">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="exhibit">04 · The detectives<small>14 audits · 3 clearance levels</small></div>
+      <div>
+        <h2>The more access,<br>the more you can test.</h2>
+        <p>Access tiers are enforced in the code: a tier-1 audit is literally handed nothing but the returns. No audit ever sees the oracle.</p>
+      </div>
+    </div>
+    <div class="tiers reveal" id="tier-cards"></div>
+  </div>
+</section>
+
+<!-- ============================== LINEUP ============================== -->
+<section class="block" id="lineup">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="exhibit">Exhibit A · The lineup<small>Detection matrix · 3,000 claims</small></div>
+      <div>
+        <h2>Who caught whom.</h2>
+        <p>Each cell is the share of a researcher's claims that an audit rejected. For the eight flawed researchers a rejection is a <b>catch</b>, so darker is better. For the two with real edges it is a <b>false alarm</b>, so darker is worse. Hover a cell for counts and 95% intervals.</p>
+      </div>
+    </div>
+    <div class="card pad reveal">
+      <div class="filters" role="group" aria-label="Show audits by tier">
+        <button class="chip" type="button" data-tier="all" aria-pressed="true">All tiers</button>
+        <button class="chip" type="button" data-tier="1" aria-pressed="false">Tier 1 · returns only</button>
+        <button class="chip" type="button" data-tier="2" aria-pressed="false">Tier 2 · trials disclosed</button>
+        <button class="chip" type="button" data-tier="3" aria-pressed="false">Tier 3 · re-run access</button>
+        <div class="scale" aria-hidden="true">0%<span class="bar" id="scale-bar"></span>100% rejected</div>
+      </div>
+      <div class="matrix-scroll"><div id="matrix"></div></div>
+      <p class="chart-sub" style="margin:12px 0 4px">Hatched cells: not applicable (PBO needs more than one trial). Arrow keys move between cells. Download: <a href="data/matrix.csv">matrix.csv</a> · <a href="data/auc.csv">auc.csv</a> · <a href="data/site-data.json">site-data.json</a></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== EXHIBITS ============================== -->
+<section class="block" id="exhibits">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="exhibit">Exhibit B · No free lunch<small>Catch rate vs false alarms</small></div>
+      <div>
+        <h2>No audit sits<br>in the safe corner.</h2>
+        <p>The ideal audit is top-left: it catches every fake and never rejects a real edge. The audits that catch the most do it by rejecting almost everything, including about four in five genuine edges.</p>
+      </div>
+    </div>
+    <div class="two reveal">
+      <div class="card pad">
+        <div class="chart-head"><div><div class="chart-title">Each audit: average catch rate vs false-alarm rate</div><div class="chart-sub">Catch averaged over the 8 flawed researchers · false alarms pooled over 600 real-edge claims</div></div></div>
+        <div class="legend" id="scatter-legend"></div>
+        <div class="chart" id="scatter"></div>
+        <details class="data"><summary>Data table</summary><div id="scatter-table"></div></details>
+      </div>
+      <div>
+        <p class="note">Delay, Cost×2 and the point-in-time universe look weak here only because <b>each catches exactly one flaw</b>, almost perfectly, and almost never raises a false alarm. That is Exhibit C.</p>
+        <p>The Deflated Sharpe with an <i>assumed</i> 100 trials and the forward tests both catch over 85% of fakes. They also reject 65–83% of real edges. A smoke alarm that goes off every time you cook doesn't tell you much.</p>
+        <p>The Probabilistic Sharpe Ratio sits at zero on both axes. Every claim already passed a significance test, so asking the same question again with a fat-tail correction changes nothing.</p>
+      </div>
+    </div>
+
+    <div class="sec-head reveal" style="margin-top:96px">
+      <div class="exhibit">Exhibit C · Antidotes<small>Implementation flaws</small></div>
+      <div>
+        <h2>One flaw, one antidote.<br>Never the same one twice.</h2>
+        <p>The statistical audits in tiers 1 and 2 caught <b>0%</b> of these four flaws: each researcher ran a single, honest-looking test, so there is no multiple testing to correct. Each flaw falls instantly to one cheap re-run attack, and every other attack misses it.</p>
+      </div>
+    </div>
+    <div class="antidotes reveal" id="antidotes"></div>
+
+    <div class="sec-head reveal" style="margin-top:96px">
+      <div class="exhibit">Exhibit D · Clearance<small>Access needed per flaw</small></div>
+      <div>
+        <h2>What do you need<br>to see?</h2>
+        <p>For each flaw: the lowest access tier at which a <i>usable</i> audit catches at least 80% of fakes. Usable means it wrongly rejects at most 20% of real edges. That cap was set after the final run as a presentation choice, and it is logged as decision D12.</p>
+      </div>
+    </div>
+    <div class="ladder reveal" id="ladder"></div>
+
+    <div class="sec-head reveal" style="margin-top:96px">
+      <div class="exhibit">Exhibit E · Separation<small>Threshold-free AUC</small></div>
+      <div>
+        <h2>PBO is a<br>coin flip.</h2>
+        <p>Forget pass/fail thresholds. Using each audit's continuous score, how well does it separate a researcher's fake claims from all real ones? 1.0 is perfect separation; 0.5 is a coin toss. The Probability of Backtest Overfitting lands at <b>0.50</b>.</p>
+      </div>
+    </div>
+    <div class="two reveal">
+      <div class="card pad">
+        <div class="chart-head"><div><div class="chart-title">Median AUC per audit, with the range across flaws</div><div class="chart-sub">Each flaw's fake claims vs all 600 real claims</div></div></div>
+        <div class="chart" id="auc"></div>
+        <details class="data"><summary>Data table</summary><div id="auc-table"></div></details>
+      </div>
+      <div>
+        <p class="note">PBO asks whether the in-sample winner keeps winning across 12,870 ways of splitting history in half. A strategy that was lucky across its <i>whole</i> history looks consistent, so PBO passes it.</p>
+        <p>PBO grades the selection <i>procedure</i>, not whether this particular winner is real. Useful for research hygiene; useless as a verdict on one claim.</p>
+        <p>The Deflated Sharpe with the true trial count had the opposite problem. When the strategies tried really do differ, it counts the real differences as noise and rejected <b>100%</b> of genuine mined edges.</p>
+      </div>
+    </div>
+
+    <div class="sec-head reveal" style="margin-top:96px">
+      <div class="exhibit">Exhibit F · Winner's curse<small>Claimed vs true Sharpe</small></div>
+      <div>
+        <h2>Even real edges<br>are oversold.</h2>
+        <p>Every faint dot is one claim's reported Sharpe. Filtering backtests through t ≥ 2 inflates everything: genuine mined edges were claimed at 1.22 against a true 0.69, and honest real edges at 1.02 against 0.72.</p>
+      </div>
+    </div>
+    <div class="card pad reveal">
+      <div class="legend" id="curse-legend"></div>
+      <div class="chart" id="curse"></div>
+      <details class="data"><summary>Data table</summary><div id="curse-table"></div></details>
+    </div>
+
+    <div class="sec-head reveal" style="margin-top:96px">
+      <div class="exhibit">Exhibit G · Patience<small>Forward-test power</small></div>
+      <div>
+        <h2>Paper trading<br>is painfully slow.</h2>
+        <p>An honest researcher who simply got lucky is invisible to every usable audit. Only new data exposes luck, and new data is weak. The experiment's forward tests rejected 79% of genuine edges after one year and 62% after three.</p>
+      </div>
+    </div>
+    <div class="two reveal">
+      <div class="card pad">
+        <div class="chart-head"><div><div class="chart-title">Chance a genuine edge passes a forward test (t ≥ 1.645)</div><div class="chart-sub">Normal approximation, by the true annual Sharpe of the strategy · dots are measured in the experiment</div></div></div>
+        <div class="legend" id="power-legend"></div>
+        <div class="chart" id="power"></div>
+        <details class="data"><summary>Data table</summary><div id="power-table"></div></details>
+      </div>
+      <div>
+        <div class="label">Paper trading needed to confirm a Sharpe-0.7 edge with 80% power</div>
+        <div class="figure-num" id="years-needed">12.6 <small>years</small></div>
+        <p>A Sharpe ratio of 0.7 is a good strategy. Proving it from scratch takes over a decade of live results, and a weaker one takes longer. A year of paper trading can neither confirm nor refute a bot.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== FINDINGS ============================== -->
+<section class="block" id="findings">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="exhibit">05 · Verdict<small>What the matrix says</small></div>
+      <div><h2>Nine findings.</h2></div>
+    </div>
+    <ol class="findings reveal">
+      <li><b>Returns alone tell you almost nothing.</b><span>The PSR caught 0%. The Deflated Sharpe with assumed trials caught most fakes only by rejecting 91% of honest real edges, and it caught 0% of look-ahead, whose fake Sharpe of 3.5 clears any bar.</span></li>
+      <li><b>Disclosing every trial fixes selection bias, and only that.</b><span>On the 120-rule miner: Bonferroni 96%, Reality Check 90%, SPA 89%. Every tier-2 audit scored 0% on look-ahead, leakage, costs and survivorship.</span></li>
+      <li><b>PBO cannot judge a single claim.</b><span>It caught 25% of mined fakes and 8% of asset-picked fakes, with an AUC of 0.50. It measures how consistent a selection process is, not whether this winner is real.</span></li>
+      <li><b>The Deflated Sharpe punishes genuine variety.</b><span>With the true trial count it rejected 100% of real mined edges, because real differences between strategies look like noise to it.</span></li>
+      <li><b>Each implementation flaw has its own antidote.</b><span>Look-ahead: delay 96%. Leakage: placebo 95%. Costs: cost×2 100%. Survivorship: point-in-time universe 96%. No single attack catches all four.</span></li>
+      <li><b>The placebo is the best all-rounder, but it is blind to data and economics.</b><span>It caught 85–98% of selection and leakage flaws but only 4% of survivorship and 8% of ignored costs, and it wrongly rejected 22% of real mined edges.</span></li>
+      <li><b>Window picking is the hardest selection flaw.</b><span>Choosing the best of 11 start dates turned zero edge into a claimed Sharpe of 1.05. The best usable audit caught 36%.</span></li>
+      <li><b>Honest luck is invisible without new data.</b><span>No usable audit catches a lucky honest test. Forward tests catch it, but they also reject 79% of real edges after one year.</span></li>
+      <li><b>Selection inflates even real edges.</b><span>Real mined edges were claimed at 1.22 against a true 0.69. The t ≥ 2 filter alone took honest real edges from 0.72 to 1.02.</span></li>
+    </ol>
+    <p class="note" style="margin-top:28px">Practical rule: ask for every trial, and also re-run the pipeline with a one-day delay, double costs, delisted names restored, and placebo data. Statistics on the returns alone will not save you.</p>
+  </div>
+</section>
+
+<!-- ============================== METHOD ============================== -->
+<section class="block" id="method">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="exhibit">06 · Method<small>How to check this work</small></div>
+      <div>
+        <h2>Pre-registered.<br>Hashed. Locked.</h2>
+        <p>Every threshold was fixed before any run; dev runs used a different seed; the final run executed once and wrote a lock file. Every decision, including the ones made after seeing results, is logged with who made it and why.</p>
+      </div>
+    </div>
+    <div class="method reveal">
+      <div class="card">
+        <h3>Integrity</h3>
+        <ul>
+          <li>Final config hash <span class="hash" data-bind="configHash">b39faa28…</span></li>
+          <li>Code hash at run time <span class="hash" data-bind="codeHash">a8897be1…</span></li>
+          <li>Seed <span class="hash" data-bind="seed">314159265</span>, distinct from dev</li>
+          <li><span data-bind="tests">84</span> automated tests, including causality checks proving the honest engine never sees the future and the planted bugs really do</li>
+          <li>Size checks: RC, SPA and the placebo reject ≤ 8% when there is truly no edge</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Caveats</h3>
+        <ul>
+          <li>The ground truth is exact for <i>these</i> simulated markets, which have no regimes, crowding or structural breaks.</li>
+          <li>Conventional thresholds (α = 5%, PBO &gt; 0.5, DSR &lt; 0.95). The AUC exhibit is threshold-free.</li>
+          <li>One family of simple rules, with 300 claims per researcher (95% intervals of about ±3–6 points).</li>
+          <li>Trading cost is 2 bps per unit of turnover, a liquid futures-style universe (decision D5).</li>
+          <li>Simulation research only. Nothing here is financial advice.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Reproduce</h3>
+        <p>Python 3.14 with numpy and scipy only.</p>
+<pre>python -m pytest -m "slow or not slow"
+python scripts/calibrate.py
+python -m qrt run --config configs/dev.toml
+python -m qrt report results/final</pre>
+        <p style="margin-top:10px">Read: <a data-repo="docs/RESULTS.md">RESULTS.md</a> · <a data-repo="docs/DECISIONS.md">DECISIONS.md</a> · <a data-repo="docs/superpowers/specs/2026-10-07-detection-matrix-design.md">design spec</a></p>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div><b>Quant Red Team</b> · v1 detection matrix · final run <span data-bind="date">2026-10-07</span> · <span data-bind="minutes">8.9</span> minutes on <span data-bind="workers">16</span> cores</div>
+    <div>Built with <b>Claude</b> (Anthropic) writing the code. Every decision and who made it is in <a data-repo="docs/DECISIONS.md">DECISIONS.md</a>.</div>
+  </div>
+</footer>
+
+<div class="tip" id="tip" role="tooltip"></div>
+<script src="assets/app.js" defer></script>
+</body>
+</html>

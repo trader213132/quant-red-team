@@ -1,0 +1,85 @@
+{
+ "config_path": "configs/final.toml",
+ "config_hash": "b39faa28bb08e7b64d8e3e5472459a28beef558970c1862c7469e77395a7f4f0",
+ "code_hash": "a8897be10c6d0ab2da40fd4ab6abffca07e8a4d67047e0fb8d4a627c6fff3c5e",
+ "seed": 314159265,
+ "final": true,
+ "started": "2026-10-07T17:33:27.708191+00:00",
+ "python": "3.14.3",
+ "numpy": "2.4.4",
+ "scipy": "1.18.1",
+ "workers": 16,
+ "rows": {
+  "honest_null": {
+   "row": "honest_null",
+   "claims": 300,
+   "runs": 18314,
+   "claim_rate": 0.016380910778639294,
+   "seconds": 57.4
+  },
+  "honest_trend": {
+   "row": "honest_trend",
+   "claims": 300,
+   "runs": 509,
+   "claim_rate": 0.5893909626719057,
+   "seconds": 5.9
+  },
+  "miner_null": {
+   "row": "miner_null",
+   "claims": 300,
+   "runs": 1127,
+   "claim_rate": 0.26619343389529726,
+   "seconds": 148.9
+  },
+  "miner_trend": {
+   "row": "miner_trend",
+   "claims": 300,
+   "runs": 307,
+   "claim_rate": 0.9771986970684039,
+   "seconds": 152.4
+  },
+  "lookahead": {
+   "row": "lookahead",
+   "claims": 300,
+   "runs": 300,
+   "claim_rate": 1.0,
+   "seconds": 6.2
+  },
+  "normaliser": {
+   "row": "normaliser",
+   "claims": 300,
+   "runs": 309,
+   "claim_rate": 0.970873786407767,
+   "seconds": 6.6
+  },
+  "cost_ignorer": {
+   "row": "cost_ignorer",
+   "claims": 300,
+   "runs": 915,
+   "claim_rate": 0.32786885245901637,
+   "seconds": 9.8
+  },
+  "survivor": {
+   "row": "survivor",
+   "claims": 300,
+   "runs": 423,
+   "claim_rate": 0.7092198581560284,
+   "seconds": 21.6
+  },
+  "window_picker": {
+   "row": "window_picker",
+   "claims": 300,
+   "runs": 7669,
+   "claim_rate": 0.039118529143304215,
+   "seconds": 37.7
+  },
+  "asset_picker": {
+   "row": "asset_picker",
+   "claims": 300,
+   "runs": 926,
+   "claim_rate": 0.32397408207343414,
+   "seconds": 16.2
+  }
+ },
+ "finished": "2026-10-07T17:42:24.142665+00:00"
+}

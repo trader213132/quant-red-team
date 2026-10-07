@@ -1,0 +1,67 @@
+# Quant Red Team v1 - DEV config.
+# For debugging and timing only. Dev results are never quoted (spec section 7).
+
+seed = 20261007
+warmup = 250             # days of history before the first position
+true_cost_bps = 2.0      # real trading cost per unit of turnover (liquid futures-style universe)
+claim_t = 2.0            # a backtest "claims an edge" when its t-stat is at least this
+alpha = 0.05
+fake_max = 0.05          # oracle true annual Sharpe <= this  -> FAKE
+real_min = 0.20          # oracle true annual Sharpe >= this  -> REAL
+
+researchers = [
+    "honest_null", "honest_trend", "miner_null", "miner_trend", "lookahead",
+    "normaliser", "cost_ignorer", "survivor", "window_picker", "asset_picker",
+]
+
+[run]
+target_claims = 30       # claims audited per researcher
+max_runs = 5000          # give up on a researcher after this many runs
+batch = 64               # runs handed to the worker pool at a time
+
+[oracle]
+paths = 256              # independent 10-year paths per oracle estimate (~2,300 years)
+
+[audits]
+psr_threshold = 0.95
+dsr_threshold = 0.95
+dsr_assumed_n = 100
+pbo_blocks = 16
+pbo_threshold = 0.5
+bootstrap_reps = 500
+bootstrap_block = 10.0
+placebo_reps = 49
+attack_t = 1.645         # re-run attacks and forward tests reject below this t
+cost_stress_mult = 2.0
+holdout_frac = 0.7
+forward_short_days = 252
+forward_long_days = 756
+
+[markets.null]
+kind = "null"
+n_assets = 10
+annual_vol = 0.25
+
+[markets.null20]
+kind = "null"
+n_assets = 20
+annual_vol = 0.25
+
+[markets.trend]
+kind = "trend"
+n_assets = 10
+annual_vol = 0.25
+trend_rho = 0.99
+trend_s = 0.000125759    # fitted by scripts/calibrate.py: true SR of honest TSMOM(60) = 0.70
+
+[markets.reversal]
+kind = "reversal"
+n_assets = 10
+annual_vol = 0.25
+reversal_theta = -0.02
+
+[markets.delisting]
+kind = "delisting"
+n_assets = 50
+annual_vol = 0.40
+delist_level = 0.30
