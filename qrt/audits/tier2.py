@@ -30,6 +30,29 @@ def dsr(view, cfg):
     return _result(score=d, reject=d < cfg.audits.dsr_threshold, value=d)
 
 
+def effective_trials(trials: np.ndarray) -> float:
+    """How many independent tries the trials amount to: the participation ratio (sum lambda)^2 / sum lambda^2
+    of their correlation matrix's eigenvalues. K uncorrelated trials give ~K; K identical trials give 1."""
+    X = trials[:, np.std(trials, axis=0) > 0]
+    if X.shape[1] <= 1:
+        return 1.0
+    lam = np.clip(np.linalg.eigvalsh(np.corrcoef(X, rowvar=False)), 0.0, None)
+    return float(lam.sum() ** 2 / (lam ** 2).sum())
+
+
+def dsr_eff(view, cfg):
+    """v2 (designed after v1): Deflated Sharpe whose bar is the best Sharpe expected from N_eff independent
+    ZERO-edge trials, using the null estimation variance 1/T. v1's DSR used the observed spread of trial
+    Sharpes, which counts genuine differences between strategies as luck."""
+    r = view.returns
+    n = len(r)
+    n_eff = effective_trials(view.trials)
+    bar = max(0.0, expected_max_sr(n_eff, 1.0 / n)) if n_eff > 1 else 0.0
+    skew, kurt = moments(r)
+    d = psr(sharpe(r), n, skew, kurt, sr_star=bar)
+    return _result(score=d, reject=d < cfg.audits.dsr_threshold, value=d)
+
+
 @lru_cache(maxsize=4)
 def _cscv_splits(S: int) -> np.ndarray:
     """All ways to choose half of S blocks as the in-sample set: a (C(S, S/2), S) 0/1 matrix."""

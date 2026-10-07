@@ -22,7 +22,7 @@ def oracle():
 def test_run_case_is_deterministic_and_complete(oracle):
     a = run_case(TINY, "lookahead", 0, oracle)
     b = run_case(TINY, "lookahead", 0, oracle)
-    assert a == b and a["label"] in ("FAKE", "REAL", "MARGINAL") and len(a["audits"]) == 14
+    assert a == b and a["label"] in ("FAKE", "REAL", "MARGINAL") and len(a["audits"]) == 16
     assert a["lag"] == 0 and a["t"] >= TINY.claim_t
 
 

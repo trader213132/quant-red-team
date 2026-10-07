@@ -1,4 +1,4 @@
-# Results: Detection Matrix v1 (final run, 2026-10-07)
+# Results: Detection Matrix v1, its v2 replication, and a real-market case study
 
 **Run:** `results/final/` (locked).
 - Config hash `b39faa28…`, code hash at run time `a8897be1…`, seed 314159265.
@@ -123,3 +123,69 @@ delisted names restored, and placebo data. Statistics on the returns alone will 
 .venv/Scripts/python.exe -m pytest -m "slow or not slow"     # 84 tests
 .venv/Scripts/python.exe -m qrt report results/final         # rebuild matrix/report from locked cases
 ```
+
+
+---
+
+# v2: pre-registered follow-up (final run, 2026-10-07)
+
+**Run:** `results/final-v2/` (locked).
+- Config hash `d35a77ab…`, code hash `be2b188f…`, **fresh seed 271828182**.
+- 3,000 new claims from 35,312 new simulated markets.
+- The two new audits were designed after seeing v1. The hypotheses were written down before the run, in
+  `superpowers/specs/2026-10-07-v2-preregistration.md`.
+
+| Pre-registered hypothesis | Result | Verdict |
+|---|---|---|
+| **H1.** v1 replicates: ≥ 90% of cells within 10 points on a fresh seed | **134 / 134** cells within 10 points (largest gap 8) | **PASS** |
+| **H2.** `dsr_eff` catches ≥ 80% of `miner_null` and `asset_picker` fakes, with ≤ 20% false alarms | asset picker **99.3%**, miner **70.3%** (95% CI 65–75%); false alarms **7.3%** pooled | **FAIL** (miner below the bar) |
+| **H3.** `full_history` catches ≥ 80% of `window_picker` fakes, with ≤ 5% false alarms | **50.0%** caught (CI 44–56%); **0%** false alarms | **FAIL** |
+
+**What v2 adds to the story**
+
+1. **The v1 matrix is not a fluke of one seed.** Every cell replicated within sampling error.
+2. **The Deflated Sharpe can be fixed, mostly.** v1's DSR rejected 100% of genuine mined edges because it
+   read real differences between strategies as luck. Using the null variance 1/T, with correlated trials
+   counted as an *effective* number (the participation ratio of the correlation eigenvalues):
+   - false alarms on real mined edges fall from **100% to 15%**;
+   - it still catches 99% of asset-pickers and 70% of parameter-miners.
+
+   That makes it a *usable* audit, but on miners it is weaker than White's Reality Check (87%), so the
+   hypothesis fails.
+3. **Window picking is still the hardest flaw.** Re-running from the earliest date never wrongly rejects a
+   real edge (0%), but it catches only half the window-pickers. The best start usually covers most of
+   the history, so the lucky stretch is still inside the full-history backtest. No audit at a usable
+   false-alarm rate reaches 80% on this flaw.
+
+---
+
+# Real-market case study (illustrative)
+
+The same researchers and audits were run on **20 liquid US ETFs** (equity indices, regions, bonds, gold,
+sectors), with Yahoo Finance daily data adjusted for splits and dividends, and 2 bps costs.
+- **Research window:** 2005-01 → 2018-12 (3,523 days).
+- **"Future":** 2019-01 → 2026-10 (1,951 days).
+
+There is no oracle in real markets. Each claim's "truth" is its rule run honestly in the future: one draw
+per researcher, so this is a story, not statistics. Equal-weight buy-and-hold of the 20 ETFs had a
+Sharpe of 0.59 in the research window and 0.90 in the future.
+
+| Researcher | Rule picked | Claimed Sharpe (t) | Clears t ≥ 2? | Audits rejecting | Future Sharpe |
+|---|---|---|---|---|---|
+| Look-ahead bug | TSMOM(60) with lag 0 | **1.33** (4.78) | yes | **2 / 14**: only placebo and delay | **−0.15** |
+| Parameter miner | MA(30, 250) long-only | 0.81 (2.94) | yes | 6 / 14 | **0.70** |
+| Asset picker | TSMOM(60) on LQD | 0.47 (1.69) | no | 10 / 14 | −0.14 |
+| Cost ignorer | rev(1) at 0 bps | 0.33 (1.18) | no | 13 / 14 | 0.13 |
+| Normaliser | full-sample level | 0.29 (1.05) | no | 13 / 14 | −0.95 |
+| Window picker | TSMOM(60) | 0.15 (0.45) | no | 14 / 14 | −0.15 |
+| Honest | TSMOM(60) | 0.10 (0.34) | no | 13 / 14 | −0.15 |
+
+- **Look-ahead behaves exactly as the simulation predicts.** It produces the best-looking backtest in the
+  study. Every returns-only and trials-disclosed audit passes it, only the two re-run attacks (placebo,
+  delay) reject it, and it lost money afterwards.
+- **The miner's pick was "real", but mostly market exposure.** A long-only trend filter really did keep
+  working (0.70), yet it trailed simply holding all 20 ETFs (0.90). The audits split 8 to 6. The placebo
+  rejects it because sign-randomised data has no upward drift, which is exactly the part of its return
+  that came from the market rather than from timing.
+- Most flawed researchers never even reach a publishable claim on real data at 2 bps. Real markets are
+  harder to fool yourself in than they look, but look-ahead fools you every time.

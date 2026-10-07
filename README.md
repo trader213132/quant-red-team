@@ -6,7 +6,10 @@ system that measures which audits catch fake edges.**
 **Website: <https://trader213132.github.io/quant-red-team/>.** The interactive detection matrix and every
 chart are built from the locked final run.
 
-## Headline results (final run, 3,000 audited claims)
+## Headline results
+
+**Paper (PDF):** [`docs/paper/quant-red-team.pdf`](docs/paper/quant-red-team.pdf) (6 pages). It covers 6,000 audited
+claims across two locked runs and a real-market case study.
 
 - **Statistical audits miss every coding or data flaw.** Tests on returns, or on all the trials, catch
   selection bias (~90%) but score **0%** on look-ahead, data leakage, ignored costs and survivorship.
@@ -15,24 +18,20 @@ chart are built from the locked final run.
   - leakage: a placebo re-run (95%);
   - costs: double the costs (100%);
   - survivorship: restore the delisted names (96%).
-- **Some audits fail badly here.** The Probability of Backtest Overfitting is a coin flip as a verdict
-  on one claim (AUC 0.50). The Deflated Sharpe rejects **100%** of genuine edges found by searching.
-- **Honest luck is invisible without new data, and paper trading is slow.** One year rejects 79% of
-  genuine Sharpe-0.7 edges, and 80% power takes about 12.6 years.
+- **Some audits fail badly here.** PBO is a coin flip as a verdict on one claim (AUC 0.50). The
+  Deflated Sharpe rejects **100%** of genuine edges found by searching.
+- **Paper trading is slow.** One year rejects 79% of genuine Sharpe-0.7 edges, and 80% power takes ~12.6 years.
+- **v2, pre-registered on a fresh seed:**
+  - **H1 PASS:** all 134 cells replicate within 10 points.
+  - **H2 FAIL:** an effective-trials Deflated Sharpe cuts false alarms on real mined edges from 100% to
+    15%, but catches only 70% of miners.
+  - **H3 FAIL:** a full-history re-run catches 50% of window pickers, with 0% false alarms.
+- **Real markets** (20 ETFs, 2005–2018 → 2019–2026). A look-ahead backtest with Sharpe 1.33 passed every
+  statistical audit, was caught only by placebo and delay, then lost money.
 
 The full write-up is in [`docs/RESULTS.md`](docs/RESULTS.md); every decision is in
 [`docs/DECISIONS.md`](docs/DECISIONS.md). The code was written with Claude (Anthropic); the decision log
 records who decided what.
-
-A backtest that looks brilliant can be fake in many ways: you tried 120 variants and kept the best,
-your code peeked at the future, you forgot trading costs, your data only contains the companies that
-survived... Statisticians have invented many tests to catch this: the Deflated Sharpe Ratio, the
-Probability of Backtest Overfitting, White's Reality Check, Hansen's SPA, holdouts and placebo re-runs.
-But **which test catches which flaw, how often does each wrongly reject a genuine edge, and how much
-access does an auditor need?** In real markets nobody knows the true answer, so nobody can score them.
-
-Here the markets are simulated, so the truth is known. Every simulated claim gets a ground-truth label
-from an *oracle* that runs the same rule honestly on ~2,300 years of fresh data from the same market.
 
 ## The experiment
 
@@ -65,6 +64,11 @@ python -m venv --system-site-packages .venv      # needs numpy, scipy and pytest
 .venv/Scripts/python.exe -m qrt predictions                            # blank predictions.csv
 .venv/Scripts/python.exe -m qrt run --config configs/final.toml --final  # THE final run, once
 .venv/Scripts/python.exe -m qrt report results/<run>                   # rebuild a report
+.venv/Scripts/python.exe -m qrt run --config configs/v2.toml --final   # the v2 run (done; locked)
+python scripts/fetch_real_data.py                                     # real ETF data (needs yfinance)
+.venv/Scripts/python.exe scripts/real_case_study.py                    # real-market case study
+.venv/Scripts/python.exe scripts/export_site_data.py                   # rebuild the website's data
+.venv/Scripts/python.exe scripts/make_paper.py                         # rebuild the paper (PDF)
 ```
 
 Each run folder gets `report.html` (open it in a browser), `matrix.csv`, `auc.csv`, `oracle.json`, one
@@ -81,6 +85,8 @@ Each run folder gets `report.html` (open it in a browser), `matrix.csv`, `auc.cs
 | `qrt/oracle.py` | Ground truth |
 | `qrt/audits/` | The fourteen audits, by tier |
 | `qrt/experiment.py`, `matrix.py`, `report.py` | Run, aggregate and report |
-| `tests/` | 84 tests, including the causality checks that prove the planted bugs are real |
+| `qrt/realdata.py` | Loads real ETF data into the same market object as the simulator |
+| `tests/` | 93 tests, including the causality checks that prove the planted bugs are real |
 | `site/` | The website (static HTML/JS); data exported by `scripts/export_site_data.py`, deployed by `.github/workflows/pages.yml` |
-| `results/final/` | The locked final run: every audited claim, the oracle table, the matrix and the report |
+| `results/final/`, `results/final-v2/` | The two locked runs: every audited claim, the oracle table, the matrix and the report |
+| `docs/paper/` | The paper: HTML template, generated figures, and the PDF |

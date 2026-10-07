@@ -25,13 +25,14 @@ from qrt.config import MarketSpec, load_config  # noqa: E402
 from qrt.engine import Dataset, Implementation, Selection, backtest  # noqa: E402
 from qrt.experiment import case_seed  # noqa: E402
 from qrt.markets import simulate  # noqa: E402
-from qrt.matrix import AUDIT_NAMES, build_auc, build_matrix, load_cases  # noqa: E402
+from qrt.matrix import build_auc, build_matrix, load_cases  # noqa: E402
 from qrt.report import AUDITS, FA_CAP, MIN_N, ROWS, pooled_false_alarms  # noqa: E402
 from qrt.strategies import StrategySpec  # noqa: E402
 from qrt.audits import TIER  # noqa: E402
 from qrt.workflows import build_researchers  # noqa: E402
 
 FINAL = ROOT / "results" / "final"
+TESTS = 93   # fast + slow test count at the time of the v2 release
 OUT = ROOT / "site" / "data"
 
 MARKET_OF = {"honest_null": "null", "honest_trend": "trend", "miner_null": "null", "miner_trend": "trend",
@@ -87,6 +88,71 @@ def market_samples(cfg):
     return out
 
 
+def audit_stats(matrix, auc_rows, fake_rows) -> list[dict]:
+    fa = pooled_false_alarms(matrix)
+    out = []
+    for a in dict.fromkeys(m["audit"] for m in matrix):
+        cells = [m for m in matrix if m["audit"] == a]
+        catches = [m["catch_rate"] for m in cells if m["row"] in fake_rows and m["n_fake"] >= MIN_N]
+        aucs = [x["auc"] for x in auc_rows if x["audit"] == a and x["n_fake"] >= MIN_N and not math.isnan(x["auc"])]
+        k, n = fa[a]
+        out.append({
+            "id": a, "short": AUDITS[a][0], "desc": AUDITS[a][1], "tier": TIER[a],
+            "false_alarm": r3(k / n), "false_alarms": k, "n_real": n, "usable": n == 0 or k / n <= FA_CAP,
+            "mean_catch": r3(np.mean(catches)), "auc_median": r3(np.median(aucs)),
+            "auc_min": r3(min(aucs)), "auc_max": r3(max(aucs)),
+            "auc_by_row": {x["row"]: r3(x["auc"]) for x in auc_rows if x["audit"] == a and x["n_fake"] >= MIN_N},
+        })
+    return out
+
+
+def cell_rate(m: dict) -> float | None:
+    if m["n_fake"] + m["n_real"] == 0:
+        return None
+    return m["catch_rate"] if m["n_fake"] >= m["n_real"] else m["false_alarm_rate"]
+
+
+def v2_block(v1_matrix) -> dict:
+    """The pre-registered follow-up: its matrix, audit stats, replication points and hypothesis scorecard."""
+    run = ROOT / "results" / "final-v2"
+    manifest = json.loads((run / "manifest.json").read_text())
+    cases = load_cases(run)
+    rows = [r for r in ROWS if any(c["row"] == r for c in cases)]
+    matrix = build_matrix(cases, rows)
+    auc_rows = build_auc(cases, rows)
+    counts = {r: sum(1 for c in cases if c["row"] == r and c["label"] == "FAKE") for r in rows}
+    stats = audit_stats(matrix, auc_rows, [r for r in rows if counts[r] >= MIN_N])
+    by2 = {(m["row"], m["audit"]): m for m in matrix}
+    rep = []
+    for m in v1_matrix:
+        a, b = cell_rate(m), cell_rate(by2[(m["row"], m["audit"])])
+        if a is not None and b is not None:
+            rep.append({"row": m["row"], "audit": m["audit"], "v1": r3(a), "v2": r3(b)})
+    within = sum(abs(p["v1"] - p["v2"]) <= 0.10 for p in rep)
+    st = {a["id"]: a for a in stats}
+    de, fh = st["dsr_eff"], st["full_history"]
+    c_miner, c_asset = by2[("miner_null", "dsr_eff")]["catch_rate"], by2[("asset_picker", "dsr_eff")]["catch_rate"]
+    c_window = by2[("window_picker", "full_history")]["catch_rate"]
+    hyps = [
+        {"id": "H1", "claim": "v1 replicates: at least 90% of cells within 10 points on a fresh seed",
+         "result": f"{within} of {len(rep)} cells within 10 points (largest gap {max(abs(p['v1'] - p['v2']) for p in rep) * 100:.0f})",
+         "pass": within / len(rep) >= 0.9},
+        {"id": "H2", "claim": "DSR-eff catches at least 80% of miner and asset-picker fakes with at most 20% false alarms",
+         "result": f"asset picker {c_asset * 100:.1f}%, miner {c_miner * 100:.1f}%, false alarms {de['false_alarm'] * 100:.1f}%",
+         "pass": c_miner >= 0.8 and c_asset >= 0.8 and de["false_alarm"] <= 0.2},
+        {"id": "H3", "claim": "Full-history re-run catches at least 80% of window-picker fakes with at most 5% false alarms",
+         "result": f"{c_window * 100:.1f}% caught, {fh['false_alarm'] * 100:.1f}% false alarms",
+         "pass": c_window >= 0.8 and fh["false_alarm"] <= 0.05},
+    ]
+    started, finished = datetime.fromisoformat(manifest["started"]), datetime.fromisoformat(manifest["finished"])
+    return {"meta": {"config_hash": manifest["config_hash"], "code_hash": manifest["code_hash"], "seed": manifest["seed"],
+                     "claims": sum(r["claims"] for r in manifest["rows"].values()),
+                     "markets": sum(r["runs"] for r in manifest["rows"].values()),
+                     "minutes": round((finished - started).total_seconds() / 60, 1)},
+            "audits": stats, "matrix": [{k: (r3(v) if isinstance(v, float) else v) for k, v in m.items()} for m in matrix],
+            "replication": rep, "hypotheses": hyps}
+
+
 def main() -> None:
     cfg = load_config(ROOT / "configs" / "final.toml")
     manifest = json.loads((FINAL / "manifest.json").read_text())
@@ -94,7 +160,6 @@ def main() -> None:
     rows = [r for r in ROWS if any(c["row"] == r for c in cases)]
     matrix = build_matrix(cases, rows)
     auc_rows = build_auc(cases, rows)
-    fa = pooled_false_alarms(matrix)
     researchers = build_researchers(cfg)
 
     counts = {r: {lab: sum(1 for c in cases if c["row"] == r and c["label"] == lab)
@@ -115,19 +180,7 @@ def main() -> None:
             "trials": researchers[r].grid.__len__() if hasattr(researchers[r], "grid") else mine[0]["n_trials"],
         })
 
-    audits_out = []
-    for a in AUDIT_NAMES:
-        cells = [m for m in matrix if m["audit"] == a]
-        catches = [m["catch_rate"] for m in cells if m["row"] in fake_rows and m["n_fake"] >= MIN_N]
-        aucs = [x["auc"] for x in auc_rows if x["audit"] == a and x["n_fake"] >= MIN_N and not math.isnan(x["auc"])]
-        k, n = fa[a]
-        audits_out.append({
-            "id": a, "short": AUDITS[a][0], "desc": AUDITS[a][1], "tier": TIER[a],
-            "false_alarm": r3(k / n), "false_alarms": k, "n_real": n, "usable": n == 0 or k / n <= FA_CAP,
-            "mean_catch": r3(np.mean(catches)), "auc_median": r3(np.median(aucs)),
-            "auc_min": r3(min(aucs)), "auc_max": r3(max(aucs)),
-            "auc_by_row": {x["row"]: r3(x["auc"]) for x in auc_rows if x["audit"] == a and x["n_fake"] >= MIN_N},
-        })
+    audits_out = audit_stats(matrix, auc_rows, fake_rows)
 
     usable = {a["id"] for a in audits_out if a["usable"]}
     access = []
@@ -150,7 +203,7 @@ def main() -> None:
                  "seed": manifest["seed"], "date": started.date().isoformat(),
                  "minutes": round((finished - started).total_seconds() / 60, 1),
                  "claims": sum(x["claims"] for x in research_out),
-                 "markets": sum(x["runs"] for x in research_out), "tests": 84, "workers": manifest["workers"],
+                 "markets": sum(x["runs"] for x in research_out), "tests": TESTS, "workers": manifest["workers"],
                  "true_cost_bps": cfg.true_cost_bps, "fa_cap": FA_CAP, "oracle_years": round(cfg.oracle_paths * 9)},
         "researchers": research_out, "audits": audits_out,
         "matrix": [{k: (r3(v) if isinstance(v, float) else v) for k, v in m.items()} for m in matrix],
@@ -160,6 +213,7 @@ def main() -> None:
                                  {"years": 3, "pass": r3(1 - ht3["false_alarm_rate"]), "n": ht3["n_real"]}]},
         "hero": hero_case(cfg, cases),
         "markets": market_samples(cfg),
+        "v2": v2_block(matrix),
     }
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "site-data.json").write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")

@@ -3,32 +3,38 @@
 **Read this first in any new session or on another device.** The newest status is at the top. The
 decision log is `docs/DECISIONS.md`.
 
-## Latest: 2026-10-07 (session 1, end)
+## Latest: 2026-10-07 (session 1, end): project complete
 
-**Status: v1 is complete. The final run is done and locked in `results/final/`, and the findings are
-written up in `docs/RESULTS.md`.**
+**Status: the whole plan is done.** v1, the v2 replication, the real-market case study, the paper and the
+website are all finished and published.
 
-- 84 tests pass (fast + slow). The dev run is in `results/dev-1/` and must not be quoted.
-- The final run took 9 minutes on 16 cores: 3,000 audited claims from 30,799 simulated markets.
-- The report is `results/final/report.html` (self-contained, so it opens in any browser).
-- After the run, the report gained a 20% false-alarm cap in its access table (D12, presentation only).
-- **Public repo:** <https://github.com/trader213132/quant-red-team>. **Website:**
-  <https://trader213132.github.io/quant-red-team/> (`site/`, deployed by `.github/workflows/pages.yml` on
-  every push to main).
-  - To regenerate the site data after any change to results:
-    `.venv/Scripts/python.exe scripts/export_site_data.py`.
-  - To preview locally: `python -m http.server 8790 --directory site`.
+| Piece | Where | State |
+|---|---|---|
+| v1 detection matrix | `results/final/` (LOCK) | 3,000 claims, 14 audits |
+| v2 pre-registered follow-up | `results/final-v2/` (LOCK), `superpowers/specs/2026-10-07-v2-preregistration.md` | H1 pass, H2 fail, H3 fail (D17) |
+| Real-market case study | `scripts/real_case_study.py`, `site/data/real-case.json` | Done. Raw data in `data/` is local only (D18) |
+| Trading-bot red-team | `private/` (gitignored) | Done and **private** (D19) |
+| Paper | `docs/paper/quant-red-team.pdf` (also `site/paper/`) | 6 pages (D20) |
+| Website | <https://trader213132.github.io/quant-red-team/> | All exhibits A–J, v1/v2 toggle |
+| Tests | `pytest -m "slow or not slow"` | 93 pass |
 
-Possible next steps (v2; each needs a new config and a DECISIONS entry, and must never touch `final`):
-1. **Real data:** run the re-run attacks (delay, cost×2, placebo) on real ETF data with known-bad and
-   known-good strategies. There's no oracle there, so it becomes a case study.
-2. **Attack a real trading bot:** treat an existing bot as a researcher and run tier-3 attacks on it.
-   RESULTS finding 8 already says a year of paper trading can't validate it.
-3. **Fix the DSR finding:** use effective-N / clustered trials and see whether it stops false-alarming on
-   real mined edges.
-4. **Window picker:** find an audit that catches it (for example, a start-date placebo).
-5. **Write-up:** a 4–6 page paper (CREST Gold-style) from RESULTS.md, plus figures from matrix.csv and
-   auc.csv.
+**To rebuild after any change:**
+1. `scripts/real_case_study.py`
+2. `scripts/export_site_data.py`
+3. `scripts/make_paper.py`
+4. Commit and push; the site redeploys automatically.
+
+**What's left is for the user, not the code.**
+- Understand and defend the results: "quiz me".
+- Optionally: put a name on the paper's author line; decide whether to publish the trading-bot red-team;
+  enter something like CREST Gold with the paper.
+
+Possible future research (each needs a new versioned config and DECISIONS entry, and must never touch
+`final` or `final-v2`):
+- an audit that reliably catches window picking;
+- `dsr_eff` combined with the Reality Check;
+- regime-switching markets;
+- more strategy families.
 
 ## Rules for working on this project
 

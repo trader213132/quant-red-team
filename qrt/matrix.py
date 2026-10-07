@@ -19,6 +19,12 @@ from qrt.stats import auc, wilson_ci
 AUDIT_NAMES = [name for name, _, _ in AUDITS]
 
 
+def audits_in(cases: list[dict]) -> list[str]:
+    """Audits recorded in these cases, in registry order (v1 runs have 14, v2 runs 16)."""
+    present = set(cases[0]["audits"]) if cases else set()
+    return [a for a in AUDIT_NAMES if a in present]
+
+
 def load_cases(run_dir: Path) -> list[dict]:
     cases = []
     for path in sorted(Path(run_dir).glob("cases_*.jsonl")):
@@ -43,7 +49,7 @@ def build_matrix(cases: list[dict], rows: list[str] | None = None) -> list[dict]
     out = []
     for row in rows or row_order(cases):
         mine = [c for c in cases if c["row"] == row]
-        for audit in AUDIT_NAMES:
+        for audit in audits_in(cases):
             def verdicts(lab):
                 return [c["audits"][audit]["reject"] for c in mine
                         if c["label"] == lab and c["audits"][audit]["reject"] is not None]
@@ -63,7 +69,7 @@ def build_auc(cases: list[dict], rows: list[str] | None = None) -> list[dict]:
     """Threshold-free comparison: how well each audit's score separates one researcher's FAKE claims
     from all REAL claims (1.0 = perfectly, 0.5 = no better than a coin)."""
     out = []
-    for audit in AUDIT_NAMES:
+    for audit in audits_in(cases):
         real = [c["audits"][audit]["score"] for c in cases
                 if c["label"] == "REAL" and c["audits"][audit]["score"] is not None]
         for row in rows or row_order(cases):

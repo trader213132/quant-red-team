@@ -19,9 +19,9 @@ def view2(trials, index=None, seed=0, B=300):
 
 
 def test_registry_and_tier_views():
-    assert [a[0] for a in AUDITS] == ["psr", "dsr_assumed", "dsr", "pbo", "bonferroni", "reality_check",
-                                      "spa", "placebo", "delay", "cost_stress", "pit_universe", "holdout",
-                                      "forward_1y", "forward_3y"]
+    assert [a[0] for a in AUDITS] == ["psr", "dsr_assumed", "dsr", "dsr_eff", "pbo", "bonferroni",
+                                      "reality_check", "spa", "placebo", "delay", "cost_stress", "pit_universe",
+                                      "holdout", "full_history", "forward_1y", "forward_3y"]
     assert [f.name for f in fields(Tier1View)] == ["returns"]          # tier 1 cannot see trials
 
 

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Which Audits Catch Fake Alpha? A Ground-Truth Benchmark of Backtest Validation Methods</title>
+<style>
+  @page { size: A4; margin: 17mm 17mm 18mm; }
+  * { box-sizing: border-box; }
+  body { font: 10.4pt/1.42 Georgia, "Times New Roman", serif; color: #17140e; margin: 0; }
+  h1 { font: 700 19pt/1.15 Georgia, serif; margin: 0 0 6pt; letter-spacing: -.01em; }
+  .meta { font: 9pt/1.4 "Segoe UI", Arial, sans-serif; color: #4f4a40; margin-bottom: 12pt; }
+  .abstract { border-top: 1.2pt solid #17140e; border-bottom: .6pt solid #c4bba8; padding: 8pt 0; margin: 0 0 12pt; font-size: 9.8pt; }
+  .abstract b { font-family: "Segoe UI", Arial, sans-serif; font-size: 8.4pt; letter-spacing: .12em; text-transform: uppercase; color: #b8321c; margin-right: 6pt; }
+  h2 { font: 700 12pt/1.2 Georgia, serif; margin: 14pt 0 5pt; break-after: avoid; }
+  h3 { font: 700 10.4pt/1.2 Georgia, serif; margin: 10pt 0 3pt; break-after: avoid; }
+  p { margin: 0 0 6pt; text-align: justify; hyphens: auto; }
+  ul, ol { margin: 0 0 6pt 16pt; padding: 0; } li { margin-bottom: 2pt; }
+  table { border-collapse: collapse; width: 100%; font: 8.3pt/1.3 "Segoe UI", Arial, sans-serif; margin: 4pt 0 8pt; break-inside: avoid; }
+  th, td { padding: 2.6pt 5pt; border-bottom: .5pt solid #ddd5c4; text-align: left; vertical-align: top; }
+  thead th { border-bottom: 1pt solid #17140e; font-weight: 600; }
+  td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+  figure { margin: 6pt 0 10pt; break-inside: avoid; text-align: center; }
+  figure img { max-width: 100%; }
+  figcaption { font: 8.4pt/1.35 "Segoe UI", Arial, sans-serif; color: #4f4a40; text-align: left; margin-top: 3pt; }
+  .row { display: flex; gap: 10pt; align-items: flex-start; } .row figure { flex: 1; }
+  code { font: 8.4pt Consolas, monospace; }
+  .pass { color: #0a7d36; font-weight: 700; } .fail { color: #b8321c; font-weight: 700; }
+  .refs p { text-align: left; font-size: 8.8pt; margin-bottom: 3pt; padding-left: 14pt; text-indent: -14pt; }
+  .small { font-size: 8.6pt; color: #4f4a40; }
+</style>
+</head>
+<body>
+
+<h1>Which Audits Catch Fake Alpha? A Ground-Truth Benchmark of Backtest Validation Methods</h1>
+<div class="meta">Quant Red Team · <b>github.com/trader213132/quant-red-team</b> · October 2026<br>
+Code written with Claude (Anthropic); every design decision, and who made it, is logged in <code>docs/DECISIONS.md</code>.</div>
+
+<div class="abstract"><b>Abstract</b>
+Many tests exist to tell whether a profitable backtest reflects a real edge or the way it was produced: the Probabilistic and Deflated Sharpe Ratios, the Probability of Backtest Overfitting, White's Reality Check, Hansen's SPA test, holdouts, placebo re-runs and forward tests. In real markets the true edge is unknown, so these tests cannot be scored. We build simulated markets with a known truth, ten complete research workflows (two honest, eight with one classic flaw each: parameter mining, look-ahead, full-sample normalisation, ignored costs, survivorship, start-date picking and asset picking) and an oracle that measures each claimed rule's true Sharpe ratio on about 2,300 fresh years. Fourteen audits in three access tiers judged 3,000 publishable claims (t ≥ 2). Tests that see only returns or the disclosed trials catch selection bias (≈90%) but none of the implementation flaws (0%). Each implementation flaw is caught by a different cheap re-run attack (95–100%). PBO does not separate fake from real claims (AUC 0.50), and the Deflated Sharpe rejected every genuine mined edge. A pre-registered follow-up on a fresh seed replicated all 134 cells within 10 points, while two new audits designed to fix the remaining failures each fell short of their pre-registered targets. A real-market case study on 20 ETFs shows the same pattern.</div>
+
+<h2>1 Introduction</h2>
+<p>A backtest that looks excellent can be wrong in ways that leave no trace in its returns. A researcher may have tried 120 variants and kept the best, computed a signal with information not available at trade time, ignored trading costs, or tested only on assets that survived. Each failure has attracted statistical remedies, but they are usually evaluated on the failure they were designed for, with returns that are assumed to be independent and normal. A practitioner auditing a claim needs to know three things: which test catches which flaw, how often each test wrongly rejects a genuine edge, and how much access to the research process each test needs.</p>
+<p>Real data cannot answer these questions because the true edge of a strategy is never observed. We therefore simulate markets in which it is known by construction, plant flaws in complete research workflows, and score every audit against an oracle. The contributions are:</p>
+<ol>
+<li>a ground-truth <b>detection matrix</b> of 10 workflows by 14 audits, built from 3,000 claims;</li>
+<li>an <b>access-tier</b> analysis: returns only, all trials disclosed, or re-run access;</li>
+<li>a <b>pre-registered follow-up</b> on a fresh seed, which replicates the matrix and tests two new audits aimed at the failures it exposed;</li>
+<li>an illustrative <b>real-market case study</b>.</li>
+</ol>
+
+<h2>2 Related work</h2>
+<p>Data-snooping corrections compare the best of many strategies with a bootstrap null: White's Reality Check [1] and Hansen's studentised SPA test [2], both using the stationary bootstrap [3]. Harvey, Liu and Zhu [4] argue for multiple-testing adjustments of t-statistics in finance. Bailey and López de Prado introduced the Probabilistic Sharpe Ratio [5] and the Deflated Sharpe Ratio [6], which builds in the expected maximum Sharpe of many trials, and, with Borwein and Zhu, the Probability of Backtest Overfitting estimated by combinatorially symmetric cross-validation [7]. Lo [8] derives the sampling distribution of Sharpe ratios. Most recently, Nikolopoulos [9] proposes falsification audits that re-run complete workflows in zero-predictability environments, close in spirit to our placebo audit. Our contribution is not a new test but an evaluation: all of these are scored against ground truth, across distinct failure classes and access levels.</p>
+
+<h2>3 Method</h2>
+<h3>3.1 Markets</h3>
+<p>Each market is a panel of daily overnight and intraday simple returns, with GARCH(1,1) volatility [10] and Student-t (ν = 5) shocks, so tests cannot rely on normality. There are four kinds:</p>
+<ul>
+<li><i>null</i>: prices are martingales, so no causal rule has an edge before costs;</li>
+<li><i>trend</i>: a hidden AR(1) drift, calibrated so an honest 60-day time-series-momentum rule has a true annual Sharpe of 0.70;</li>
+<li><i>reversal</i>: a small one-day reversal, with a gross edge of +0.54 that becomes −0.13 after costs;</li>
+<li><i>delisting</i>: a null market where any asset that falls 70% is removed.</li>
+</ul>
+<p>Trading costs are 2 bps per unit of turnover.</p>
+<h3>3.2 Researchers, claims and the oracle</h3>
+<p>The ten workflows are listed in Figure 1. Each turns a dataset into a claim: the selected rule, its reported daily returns, and every trial it ran. Only claims with t ≥ 2 are audited, because flawed research is shown only when it looks good. The oracle runs the claimed rule <i>honestly</i> on 256 fresh 10-year paths (about 2,300 years). Claims with a true Sharpe ≤ 0.05 are labelled FAKE and those ≥ 0.20 REAL. Rejecting a FAKE claim is a <i>catch</i>; rejecting a REAL one is a <i>false alarm</i>.</p>
+<h3>3.3 Audits and access tiers</h3>
+<p>Each tier receives only the information its access allows, and this is enforced in code.</p>
+<ul>
+<li><b>Tier 1 (returns only):</b> the PSR, and the DSR with an assumed 100 trials.</li>
+<li><b>Tier 2 (all trials disclosed):</b> the DSR with the true trial count, PBO (16 blocks, 12,870 splits), Bonferroni, White's Reality Check, and Hansen's SPA (stationary bootstrap, mean block 10, 500 replications).</li>
+<li><b>Tier 3 (re-run access):</b> a placebo that re-runs the whole workflow on 49 sign-randomised copies of its own data, a one-day delay, double costs, the point-in-time universe, a 70/30 holdout, and honest forward tests of 1 and 3 years.</li>
+</ul>
+<p>Thresholds were fixed before any run: α = 5%, PBO &gt; 0.5, DSR &lt; 0.95, and re-run attacks reject at t &lt; 1.645.</p>
+<h3>3.4 Protocol and verification</h3>
+<p>The code has 91 automated tests. Causality tests show that the honest engine never uses future data and that the two planted look-ahead bugs really do. Size tests confirm that the Reality Check, SPA and the placebo reject at most about 5% of claims when there is no edge. During development the SPA, studentised with a block-bootstrap variance, was oversized (11.7% at α = 5%), so it was switched to the sample standard deviation (6.3%). Debugging used a separate seed. The final configuration and code were hashed before a single locked run with 300 claims per workflow, drawn from 30,799 simulated markets.</p>
+
+<h2>4 Results</h2>
+<figure><img src="figures/matrix-v1.svg" alt="Detection matrix">
+<figcaption><b>Figure 1.</b> Share of claims each audit rejected (%, darker = more rejected). The top eight rows are FAKE claims, where rejection is a catch. The bottom two are REAL, where rejection is a false alarm. Vertical rules separate the access tiers. Hatched cells are not applicable (PBO needs more than one trial). Each cell is based on 300 claims, with a 95% interval of about ±3–6 points.</figcaption></figure>
+<ul>
+<li><b>Returns alone tell you almost nothing.</b> The PSR caught 0%, because every claim had already passed a significance test. The DSR with assumed trials caught most fakes only by rejecting 91% of genuine honest edges. It also caught 0% of look-ahead, whose fake Sharpe (mean 3.5) clears any bar.</li>
+<li><b>Disclosure fixes selection only.</b> On the 120-rule miner, Bonferroni caught 96%, the Reality Check 90% and SPA 89%. Every tier-2 audit caught 0% of the four implementation flaws, because each of those researchers ran a single test.</li>
+<li><b>PBO cannot judge a single claim</b> (median AUC 0.50). A strategy that was lucky across its whole history looks consistent across splits.</li>
+<li><b>The DSR punishes genuine variety.</b> It rejected 100% of real mined edges, because the spread of trial Sharpes includes real differences between strategies.</li>
+<li><b>One flaw, one antidote:</b>
+  <ul>
+    <li>look-ahead: delay, 96%;</li>
+    <li>full-sample normalisation: placebo, 95%;</li>
+    <li>ignored costs: double costs, 100%;</li>
+    <li>survivorship: point-in-time universe, 96%.</li>
+  </ul>
+  The placebo misses survivorship (4%) and costs (8%), because it copies biased data, and because sign-randomising removes a gross edge that was real.</li>
+<li><b>Window picking and honest luck evade every usable audit.</b> Usable here means a pooled false-alarm rate of at most 20%; this cap was chosen after the run and is labelled as such.</li>
+</ul>
+<div class="row">
+<figure><img src="figures/tradeoff-v1.svg" alt="Trade-off"><figcaption><b>Figure 2.</b> Average catch rate against false alarms. No audit reaches the safe corner. Targeted attacks (Delay, Cost×2, PIT) look weak on average only because each catches exactly one flaw.</figcaption></figure>
+<figure><img src="figures/power.svg" alt="Forward-test power"><figcaption><b>Figure 3.</b> Chance that a genuine edge passes a forward test. Confirming a Sharpe-0.7 edge with 80% power takes 12.6 years. The measured pass rates after 1 and 3 years were 21% and 38%.</figcaption></figure>
+</div>
+
+<h2>5 Pre-registered follow-up (v2)</h2>
+<p>Two audits were designed after seeing the v1 results, and hypotheses were written down before the run. <code>dsr_eff</code> is a DSR whose bar is the expected maximum Sharpe of N<sub>eff</sub> independent zero-edge trials under the null variance 1/T. N<sub>eff</sub> is the participation ratio (Σλ)²/Σλ² of the eigenvalues of the trials' correlation matrix. <code>full_history</code> re-runs the claimed rule from the earliest available date. Both were tested on a fresh seed: 3,000 new claims from 35,312 markets. During development, <code>full_history</code> caught only 46% of window-pickers on the development seed. Neither audit was changed after that.</p>
+<table><thead><tr><th>Hypothesis</th><th>Result</th><th>Verdict</th></tr></thead><tbody>
+<tr><td>H1: at least 90% of v1 cells replicate within 10 points</td><td>134 of 134 (largest difference 8 points)</td><td class="pass">PASS</td></tr>
+<tr><td>H2: <code>dsr_eff</code> catches ≥ 80% of miner and asset-picker fakes with ≤ 20% false alarms</td><td>asset picker 99.3%, miner 70.3%; false alarms 7.3% (14.7% on real mined edges, against 100% for the DSR)</td><td class="fail">FAIL</td></tr>
+<tr><td>H3: <code>full_history</code> catches ≥ 80% of window-pickers with ≤ 5% false alarms</td><td>50.0% caught, 0% false alarms</td><td class="fail">FAIL</td></tr>
+</tbody></table>
+<div class="row">
+<figure style="flex:.9"><img src="figures/replication.svg" alt="Replication"><figcaption><b>Figure 4.</b> Every detection-matrix cell, v1 against v2. Each seed has its own 3,000 claims.</figcaption></figure>
+<div style="flex:1.1"><p>Replication was complete. <code>dsr_eff</code> repairs the DSR's main defect, cutting false alarms on genuine mined edges from 100% to 15%, but on miners it is weaker than the Reality Check (87%). <code>full_history</code> never rejected a real edge but caught only half the window-pickers. The best start date usually covers most of the history, so the lucky stretch is still inside the full backtest. Window picking remains the flaw that no usable audit reliably catches.</p></div>
+</div>
+
+<h2>6 Real-market case study</h2>
+<p>The same workflows and audits were run on 20 liquid US ETFs, using Yahoo Finance data adjusted for splits and dividends. The research window was 2005–2018, and the "future" was 2019 to October 2026. There is no oracle here: the truth is each claimed rule's honest performance in the future, a single draw per workflow. Equal-weight buy-and-hold had a Sharpe of 0.59, then 0.90.</p>
+<table><thead><tr><th>Workflow</th><th>Rule picked</th><th class="r">Claimed SR (t)</th><th class="r">Audits rejecting</th><th class="r">Future SR</th></tr></thead><tbody>
+<tr><td>Look-ahead bug</td><td><code>tsmom(60)/LS</code></td><td class='r'>1.33 (4.78)</td><td class='r'>2 / 14</td><td class='r'>-0.15</td></tr><tr><td>Parameter miner</td><td><code>ma(30,250)/LO</code></td><td class='r'>0.81 (2.94)</td><td class='r'>6 / 14</td><td class='r'>0.70</td></tr><tr><td>Asset picker</td><td><code>tsmom(60)/LS</code> on LQD</td><td class='r'>0.47 (1.69)</td><td class='r'>10 / 14</td><td class='r'>-0.14</td></tr><tr><td>Cost ignorer</td><td><code>rev(1)/LS</code></td><td class='r'>0.33 (1.18)</td><td class='r'>13 / 14</td><td class='r'>0.13</td></tr><tr><td>Full-sample normaliser</td><td><code>level()/LS</code></td><td class='r'>0.29 (1.05)</td><td class='r'>13 / 14</td><td class='r'>-0.95</td></tr><tr><td>Window picker</td><td><code>tsmom(60)/LS</code></td><td class='r'>0.15 (0.45)</td><td class='r'>14 / 14</td><td class='r'>-0.15</td></tr><tr><td>Honest</td><td><code>tsmom(60)/LS</code></td><td class='r'>0.10 (0.34)</td><td class='r'>13 / 14</td><td class='r'>-0.15</td></tr>
+</tbody></table>
+<p>Look-ahead produced the best-looking backtest. Only the placebo and delay attacks rejected it, and it lost money afterwards, as the simulation predicts. The miner's long-only trend filter kept working (0.70), but it trailed buy-and-hold, so its "edge" was largely market exposure. The placebo rejects it for exactly that reason: sign-randomised data has no upward drift.</p>
+
+<h2>7 Discussion and limitations</h2>
+<p>The practical lesson is that no single test is sufficient. An auditor should ask for every trial and re-run the pipeline with a delay, double costs, the point-in-time universe and placebo data. Statistics computed on returns alone cannot detect implementation flaws, and new data is the only defence against honest luck, at a rate of years per tenth of a Sharpe ratio.</p>
+<p>The limitations are as follows:</p>
+<ul>
+<li>The ground truth is exact only for these simulated markets, which have no regime shifts, crowding or structural breaks.</li>
+<li>There is a single family of simple trading rules.</li>
+<li>Conventional thresholds were used. The AUC analysis in the repository compares audits without them.</li>
+<li>The placebo uses 49 copies, which makes its p-value coarse.</li>
+<li>The 20% false-alarm cap is a post-hoc presentation choice.</li>
+<li>The real-market study is n = 1 per workflow.</li>
+</ul>
+
+<h2>8 Reproducibility</h2>
+<p class="small">Python 3.14 with numpy and scipy. The repository contains the code, every audited claim from both locked runs, the oracle tables and a decision log. Hashes: v1 config <code>b39faa28…</code> and code <code>a8897be1…</code>; v2 config <code>d35a77ab…</code> and code <code>be2b188f…</code>. To reproduce: <code>python -m pytest -m "slow or not slow"</code>, then <code>python -m qrt report results/final</code>. An interactive version is at trader213132.github.io/quant-red-team.</p>
+
+<h2>References</h2>
+<div class="refs">
+<p>[1] White, H. (2000). A reality check for data snooping. <i>Econometrica</i>, 68(5), 1097–1126.</p>
+<p>[2] Hansen, P. R. (2005). A test for superior predictive ability. <i>Journal of Business &amp; Economic Statistics</i>, 23(4), 365–380.</p>
+<p>[3] Politis, D. N., &amp; Romano, J. P. (1994). The stationary bootstrap. <i>Journal of the American Statistical Association</i>, 89(428), 1303–1313.</p>
+<p>[4] Harvey, C. R., Liu, Y., &amp; Zhu, H. (2016). …and the cross-section of expected returns. <i>Review of Financial Studies</i>, 29(1), 5–68.</p>
+<p>[5] Bailey, D. H., &amp; López de Prado, M. (2012). The Sharpe ratio efficient frontier. <i>Journal of Risk</i>, 15(2), 3–44.</p>
+<p>[6] Bailey, D. H., &amp; López de Prado, M. (2014). The deflated Sharpe ratio: correcting for selection bias, backtest overfitting and non-normality. <i>Journal of Portfolio Management</i>, 40(5), 94–107.</p>
+<p>[7] Bailey, D. H., Borwein, J. M., López de Prado, M., &amp; Zhu, Q. J. (2017). The probability of backtest overfitting. <i>Journal of Computational Finance</i>, 20(4), 39–69.</p>
+<p>[8] Lo, A. W. (2002). The statistics of Sharpe ratios. <i>Financial Analysts Journal</i>, 58(4), 36–52.</p>
+<p>[9] Nikolopoulos, S. D. (2026). Spurious predictability in financial machine learning. arXiv:2604.15531.</p>
+<p>[10] Bollerslev, T. (1986). Generalized autoregressive conditional heteroskedasticity. <i>Journal of Econometrics</i>, 31(3), 307–327.</p>
+</div>
+</body>
+</html>

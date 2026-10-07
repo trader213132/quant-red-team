@@ -7,6 +7,8 @@
   const SVGNS = "http://www.w3.org/2000/svg";
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let DATA = null;
+  let REAL = null;
+  let RUN = "v1";
   let firstHeroRender = true;
 
   // ---------------------------------------------------------------- helpers
@@ -106,7 +108,8 @@
     psr: "Probabilistic Sharpe Ratio", dsr_assumed: "Deflated Sharpe (assumes 100 trials)", dsr: "Deflated Sharpe (true trial count)",
     pbo: "Probability of Backtest Overfitting", bonferroni: "Bonferroni correction", reality_check: "White's Reality Check",
     spa: "Hansen's SPA test", placebo: "Placebo re-run", delay: "Delay attack (+1 day)", cost_stress: "Cost stress (×2)",
-    pit_universe: "Point-in-time universe", holdout: "Holdout (70 / 30)", forward_1y: "Forward test · 1 year", forward_3y: "Forward test · 3 years",
+    pit_universe: "Point-in-time universe", holdout: "Holdout (70 / 30)",
+    dsr_eff: "Deflated Sharpe, effective trials (v2)", full_history: "Full-history re-run (v2)", forward_1y: "Forward test · 1 year", forward_3y: "Forward test · 3 years",
   };
   const TIERS = {
     1: { name: "Returns only", who: "What a fund pitch shows you.", color: "--s1" },
@@ -115,16 +118,17 @@
   };
   const FAKE_ORDER = ["honest_null", "miner_null", "lookahead", "normaliser", "cost_ignorer", "survivor", "window_picker", "asset_picker"];
   const REAL_ORDER = ["honest_trend", "miner_trend"];
-  let R = {}, A = {}, CELL = {};
+  let R = {}, A = {}, CELL = {}, CELL2 = {};
 
   function index() {
     R = Object.fromEntries(DATA.researchers.map((r) => [r.id, r]));
     A = Object.fromEntries(DATA.audits.map((a) => [a.id, a]));
     CELL = Object.fromEntries(DATA.matrix.map((m) => [`${m.row}|${m.audit}`, m]));
+    CELL2 = Object.fromEntries(DATA.v2.matrix.map((m) => [`${m.row}|${m.audit}`, m]));
   }
   const isRealRow = (id) => R[id].real > R[id].fake;
-  function cellValue(row, audit) {
-    const c = CELL[`${row}|${audit}`];
+  function cellValue(row, audit, cells = CELL) {
+    const c = cells[`${row}|${audit}`];
     if (c.n_fake + c.n_real === 0) return null;
     return isRealRow(row) ? { v: c.false_alarm_rate, k: c.false_alarms, n: c.n_real, lo: c.fa_lo, hi: c.fa_hi, kind: "false alarm" } : { v: c.catch_rate, k: c.caught, n: c.n_fake, lo: c.catch_lo, hi: c.catch_hi, kind: "caught" };
   }
@@ -137,7 +141,14 @@
       heroGain: `+${Math.round(gain * 100).toLocaleString("en-GB")}%`, heroDelay: num(h.delay_t),
       configHash: `${m.config_hash.slice(0, 12)}…`, codeHash: `${m.code_hash.slice(0, 12)}…`, seed: String(m.seed),
       tests: String(m.tests), date: m.date, minutes: String(m.minutes), workers: String(m.workers),
+      v2config: `${DATA.v2.meta.config_hash.slice(0, 12)}…`, v2code: `${DATA.v2.meta.code_hash.slice(0, 12)}…`,
+      v2seed: String(DATA.v2.meta.seed), v2claims: fmtInt(DATA.v2.meta.claims), v2markets: fmtInt(DATA.v2.meta.markets),
     };
+    if (REAL) {
+      map.realResearch = `${REAL.window.research[0].slice(0, 4)}–${REAL.window.research[1].slice(0, 4)}`;
+      map.realFuture = `${REAL.window.future[0].slice(0, 4)}–${REAL.window.future[1].slice(0, 4)}`;
+      map.realLookClaim = REAL.cases.find((c) => c.id === "lookahead").claimed_sharpe.toFixed(2);
+    }
     for (const n of $$("[data-bind]")) if (map[n.dataset.bind] != null) n.textContent = map[n.dataset.bind];
     for (const a of $$("[data-repo]")) a.href = `${REPO}/blob/main/${a.dataset.repo}`;
     $("#repo").href = REPO;
@@ -145,7 +156,9 @@
 
   function stats() {
     const m = DATA.meta;
-    const items = [[fmtInt(m.markets), "simulated 10-year markets"], [fmtInt(m.claims), "audited claims"], ["14", "audits in 3 access tiers"],
+    const v2 = DATA.v2.meta;
+    const items = [[fmtInt(m.markets + v2.markets), "simulated 10-year markets"], [fmtInt(m.claims + v2.claims), "audited claims, two locked runs"],
+      [String(DATA.v2.audits.length), "audits in 3 access tiers"],
       [fmtInt(m.oracle_years), "years of fresh data behind each truth"], [String(m.tests), "automated tests"]];
     $("#stats").replaceChildren(...items.map(([v, k]) => el("div", { class: "stat" }, el("div", { class: "v", text: v }), el("div", { class: "k", text: k }))));
   }
@@ -281,7 +294,9 @@
   // ---------------------------------------------------------------- the lineup (matrix)
   let tierFilter = "all";
   function matrix() {
-    const audits = DATA.audits;
+    const audits = RUN === "v1" ? DATA.audits : DATA.v2.audits;
+    const cells = RUN === "v1" ? CELL : CELL2;
+    const AA = Object.fromEntries(audits.map((a) => [a.id, a]));
     const head1 = el("tr", { class: "tierrow" }, el("th", {}),
       [1, 2, 3].map((t) => el("th", { colspan: audits.filter((a) => a.tier === t).length, "data-tier": t, style: { "--tc": `var(${TIERS[t].color})` }, text: `Tier ${t} · ${TIERS[t].name}` })));
     const head2 = el("tr", { class: "audrow" }, el("th", {}),
@@ -293,7 +308,7 @@
         const r = R[id];
         const tr = el("tr", { "data-row": id }, el("th", { scope: "row", class: "rowh" }, r.name, el("small", { text: r.flaw })));
         audits.forEach((a) => {
-          const cv = cellValue(id, a.id);
+          const cv = cellValue(id, a.id, cells);
           if (!cv) { tr.append(el("td", { class: "hc na", "data-tier": a.tier, "data-row": id, "data-audit": a.id, tabindex: -1, "aria-label": `${r.name}, ${AUDIT_LONG[a.id]}: not applicable`, text: "–" })); return; }
           const c = heat(cv.v);
           tr.append(el("td", { class: "hc", "data-tier": a.tier, "data-row": id, "data-audit": a.id, tabindex: -1, style: { background: c.bg, color: c.ink },
@@ -311,10 +326,10 @@
     const firstCell = $("td.hc", tbl); if (firstCell) firstCell.tabIndex = 0;
 
     const show = (td, evt) => {
-      const row = td.dataset.row, a = td.dataset.audit, cv = cellValue(row, a);
+      const row = td.dataset.row, a = td.dataset.audit, cv = cellValue(row, a, cells);
       showTip(evt || td, () => cv
         ? [tv(`${pct(cv.v)} ${cv.kind === "caught" ? "caught" : "false alarms"}`), el("div", { text: `${R[row].name} × ${AUDIT_LONG[a]}` }),
-           tl(`${cv.k} of ${cv.n} ${cv.kind === "caught" ? "fake" : "real"} claims rejected · 95% CI ${pct(cv.lo)}–${pct(cv.hi)}`), tl(`Tier ${A[a].tier} · ${TIERS[A[a].tier].name}`)]
+           tl(`${cv.k} of ${cv.n} ${cv.kind === "caught" ? "fake" : "real"} claims rejected · 95% CI ${pct(cv.lo)}–${pct(cv.hi)}`), tl(`Tier ${AA[a].tier} · ${TIERS[AA[a].tier].name} · ${RUN}`)]
         : [tv("Not applicable"), tl(`${AUDIT_LONG[a]} needs more than one trial; ${R[row].name} ran one.`)]);
     };
     tbl.addEventListener("pointerover", (e) => { const td = e.target.closest("td.hc"); if (td) show(td, e); });
@@ -339,7 +354,8 @@
   }
   function applyTier() {
     $$("[data-tier]", $("#matrix")).forEach((n) => (n.dataset.hidden = tierFilter === "all" || n.dataset.tier === tierFilter ? "0" : "1"));
-    $$(".filters .chip").forEach((c) => c.setAttribute("aria-pressed", String(c.dataset.tier === tierFilter)));
+    $$(".filters .tierchip").forEach((c) => c.setAttribute("aria-pressed", String(c.dataset.tier === tierFilter)));
+    $$(".filters .run").forEach((c) => c.setAttribute("aria-pressed", String(c.dataset.run === RUN)));
   }
 
   // ---------------------------------------------------------------- Exhibit B: scatter
@@ -595,12 +611,157 @@
     $("#power-table").replaceChildren(table(["Years", "SR 0.5", "SR 0.7", "SR 1.0"], yrs.map((v) => [String(v), pct(power(0.5, v)), pct(power(0.7, v)), pct(power(1.0, v))])));
   }
 
+
+  // ---------------------------------------------------------------- Exhibit H: scorecard + replication
+  function scorecard() {
+    $("#scorecard").replaceChildren(...DATA.v2.hypotheses.map((h) => el("div", { class: "card hyp" },
+      el("div", { class: "hid", text: h.id }), el("div", { class: "claim", text: h.claim }),
+      el("p", { class: "res", text: h.result }),
+      el("span", { class: `verdict-tag ${h.pass ? "pass" : "fail"}`, text: h.pass ? "✓ Pass" : "✕ Fail" }))));
+  }
+
+  function replication() {
+    const box = $("#replication"), W = Math.max(300, box.clientWidth), H = Math.round(Math.min(460, W * 0.85));
+    const m = { t: 12, r: 14, b: 44, l: 50 };
+    const x = linear(0, 1, m.l, W - m.r), y = linear(0, 1, H - m.b, m.t);
+    const svg = svgRoot(box, W, H, "Scatter of every detection-matrix cell, v1 rate against v2 rate; all lie near the diagonal.");
+    const hair = cssVar("--hair"), muted = cssVar("--muted"), s1 = cssVar("--s1"), card = cssVar("--card");
+    s("path", { d: `M${x(0)},${y(0.1)}L${x(0.9)},${y(1)}L${x(1)},${y(1)}L${x(1)},${y(0.9)}L${x(0.1)},${y(0)}L${x(0)},${y(0)}Z`, fill: s1, opacity: 0.1 }, svg);
+    for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+      s("line", { x1: x(t), x2: x(t), y1: m.t, y2: H - m.b, stroke: hair }, svg);
+      s("line", { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), stroke: hair }, svg);
+      s("text", { x: x(t), y: H - m.b + 16, "text-anchor": "middle", fill: muted, style: font(11), text: pct(t) }, svg);
+      s("text", { x: m.l - 8, y: y(t) + 4, "text-anchor": "end", fill: muted, style: font(11), text: pct(t) }, svg);
+    }
+    s("line", { x1: x(0), y1: y(0), x2: x(1), y2: y(1), stroke: cssVar("--ink-2"), "stroke-width": 1 }, svg);
+    s("text", { x: (m.l + W - m.r) / 2, y: H - 8, "text-anchor": "middle", fill: cssVar("--ink-2"), style: font(11.5, 600), text: "v1 rate →" }, svg);
+    s("text", { transform: `translate(14 ${(m.t + H - m.b) / 2}) rotate(-90)`, "text-anchor": "middle", fill: cssVar("--ink-2"), style: font(11.5, 600), text: "v2 rate (fresh seed) →" }, svg);
+    for (const p of DATA.v2.replication) {
+      const cx = x(p.v1), cy = y(p.v2);
+      s("circle", { cx, cy, r: 4.5, fill: s1, stroke: card, "stroke-width": 1.5 }, svg);
+      const hit = s("circle", { cx, cy, r: 10, fill: "transparent" }, svg);
+      hit.addEventListener("pointermove", (e) => showTip(e, () => [tv(`${pct(p.v1)} → ${pct(p.v2)}`), el("div", { text: `${R[p.row].name} × ${AUDIT_LONG[p.audit]}` }), tl(`difference ${Math.round(Math.abs(p.v1 - p.v2) * 100)} points`)]));
+      hit.addEventListener("pointerleave", hideTip);
+    }
+    const sorted = [...DATA.v2.replication].sort((a, b) => Math.abs(b.v1 - b.v2) - Math.abs(a.v1 - a.v2));
+    $("#replication-table").replaceChildren(table(["Researcher × audit", "v1", "v2", "Difference"],
+      sorted.map((p) => [`${R[p.row].name} × ${AUDIT_LONG[p.audit]}`, pct(p.v1), pct(p.v2), `${Math.round(Math.abs(p.v1 - p.v2) * 100)} pts`])));
+  }
+
+  // ---------------------------------------------------------------- Exhibit I: the two new audits
+  function hbars(box, rows, opts) {
+    // rows: [{label, values:[{v, color, faded, note}], ...}]; one or more bars per row, value labels at the tips
+    const W = Math.max(300, box.clientWidth);
+    const per = rows[0].values.length, barH = 14, gap = 2;
+    const need = Math.max(...rows.map((r) => textWidth(r.label, 12, 600))) + 14;
+    const stacked = need > W * 0.38;                        // narrow screens: label above its bars
+    const rowH = per * (barH + gap) + (stacked ? 30 : 18);
+    const narrow = W < 520;
+    const m = { t: opts.target != null ? 24 : 8, r: narrow ? 70 : 44, b: 26, l: stacked ? 8 : need };
+    const H = m.t + m.b + rows.length * rowH;
+    const x = linear(0, 1, m.l, W - m.r);
+    const svg = svgRoot(box, W, H, opts.label);
+    for (const t of [0, 0.5, 1]) {
+      s("line", { x1: x(t), x2: x(t), y1: m.t, y2: H - m.b, stroke: t === 0 ? cssVar("--base") : cssVar("--hair") }, svg);
+      s("text", { x: x(t), y: H - 8, "text-anchor": "middle", fill: cssVar("--muted"), style: font(11), text: pct(t) }, svg);
+    }
+    if (opts.target != null) {
+      s("line", { x1: x(opts.target), x2: x(opts.target), y1: m.t, y2: H - m.b, stroke: cssVar("--stamp"), "stroke-width": 1.5 }, svg);
+      s("line", { x1: x(opts.target), x2: x(opts.target), y1: m.t - 14, y2: m.t, stroke: cssVar("--stamp"), "stroke-width": 1.5 }, svg);
+      s("text", { x: x(opts.target) + 4, y: m.t - 6, fill: cssVar("--stamp"), style: font(10.5, 700), text: opts.targetLabel }, svg);
+    }
+    rows.forEach((r, i) => {
+      const y0 = m.t + i * rowH + (stacked ? 21 : 9);
+      if (stacked) s("text", { x: m.l, y: y0 - 6, fill: cssVar("--ink"), style: font(12, 600), text: r.label }, svg);
+      else s("text", { x: m.l - 10, y: y0 + (per * (barH + gap)) / 2 + 2, "text-anchor": "end", fill: cssVar("--ink"), style: font(12, 600), text: r.label }, svg);
+      r.values.forEach((b, j) => {
+        const yy = y0 + j * (barH + gap), w = Math.max(1.5, x(b.v) - x(0));
+        s("path", { d: roundedRight(x(0), yy, w, barH, 4), fill: b.color, opacity: b.faded ? 0.3 : 1 }, svg);
+        s("text", { x: x(b.v) + 6, y: yy + barH - 3, fill: cssVar("--ink"), style: font(11, 600), text: `${pct(b.v)}${b.note ? "  " + (narrow ? b.short || b.note : b.note) : ""}` }, svg);
+        const hit = s("rect", { x: 0, y: yy - 1, width: W, height: barH + gap, fill: "transparent" }, svg);
+        hit.addEventListener("pointermove", (e) => showTip(e, () => [tv(pct(b.v)), el("div", { text: r.label }), tl(b.name || "")]));
+        hit.addEventListener("pointerleave", hideTip);
+      });
+    });
+  }
+
+  function fixes() {
+    const c = (row, a) => CELL2[`${row}|${a}`];
+    const before = cssVar("--muted"), after = cssVar("--s1");
+    const rows = [
+      { label: "Catches miner fakes", k: (a) => c("miner_null", a).catch_rate },
+      { label: "Catches asset-picker fakes", k: (a) => c("asset_picker", a).catch_rate },
+      { label: "False alarms, real mined edges", k: (a) => c("miner_trend", a).false_alarm_rate },
+    ].map((r) => ({ label: r.label, values: [
+      { v: r.k("dsr"), color: before, name: "Deflated Sharpe (v1 rule)" },
+      { v: r.k("dsr_eff"), color: after, name: "Deflated Sharpe, effective trials (v2)" }] }));
+    hbars($("#fix-dsr"), rows, { label: "Deflated Sharpe before and after the effective-trials fix." });
+    $("#fix-legend").replaceChildren(
+      el("span", {}, el("i", { style: { background: before } }), "Deflated Sharpe (v1 rule)"),
+      el("span", {}, el("i", { style: { background: after } }), "DSR-eff (v2)"));
+    $("#fix-dsr-table").replaceChildren(table(["Measure", "DSR (v1 rule)", "DSR-eff (v2)"], rows.map((r) => [r.label, pct(r.values[0].v), pct(r.values[1].v)])));
+
+    const fa = Object.fromEntries(DATA.v2.audits.map((a) => [a.id, a.false_alarm]));
+    const ids = ["full_history", "holdout", "bonferroni", "dsr", "reality_check", "pbo", "placebo", "delay", "spa"];
+    const wrows = ids.map((id) => {
+      const v = c("window_picker", id).catch_rate, unusable = fa[id] > 0.2;
+      return { label: AUDIT_LONG[id].replace(" (v2)", ""), values: [{ v, color: id === "full_history" ? cssVar("--s3") : cssVar("--ink-2"),
+        faded: unusable, note: unusable ? `✕ ${pct(fa[id])} false alarms` : "", short: unusable ? `✕ FA ${pct(fa[id])}` : "", name: `false alarms on real edges ${pct(fa[id], 1)}` }] };
+    }).sort((p, q) => q.values[0].v - p.values[0].v);
+    hbars($("#fix-window"), wrows, { label: "Catch rate of each audit on window-picker fakes.", target: 0.8, targetLabel: "80% target" });
+    $("#fix-window-table").replaceChildren(table(["Audit", "Catches window pickers", "False alarms (all real)"],
+      wrows.map((r) => [r.label, pct(r.values[0].v), r.values[0].name.replace("false alarms on real edges ", "")])));
+  }
+
+  // ---------------------------------------------------------------- Exhibit J: real markets
+  const REAL_NAMES = { honest: "Honest", miner: "Parameter miner", lookahead: "Look-ahead bug", normaliser: "Full-sample normaliser",
+    cost_ignorer: "Cost ignorer", window_picker: "Window picker", asset_picker: "Asset picker" };
+  function realChart() {
+    if (!REAL) return;
+    const box = $("#real-chart"), W = Math.max(300, box.clientWidth);
+    const rows = [...REAL.cases].sort((a, b) => b.claimed_sharpe - a.claimed_sharpe);
+    const need = Math.max(...rows.map((r) => textWidth(REAL_NAMES[r.id], 12, 600))) + 14;
+    const stacked = need > W * 0.38;
+    const rowH = stacked ? 46 : 36, m = { t: 22, r: 18, b: 34, l: stacked ? 14 : need };
+    const H = m.t + m.b + rows.length * rowH;
+    const x = linear(-1.2, 1.6, m.l, W - m.r);
+    const svg = svgRoot(box, W, H, "Claimed Sharpe in the research window against the rule's real future Sharpe, per researcher.");
+    const s1 = cssVar("--s1"), s2 = cssVar("--s2"), card = cssVar("--card"), muted = cssVar("--muted");
+    for (const t of [-1, -0.5, 0, 0.5, 1, 1.5]) {
+      s("line", { x1: x(t), x2: x(t), y1: m.t, y2: H - m.b, stroke: t === 0 ? cssVar("--base") : cssVar("--hair") }, svg);
+      s("text", { x: x(t), y: H - m.b + 16, "text-anchor": "middle", fill: muted, style: font(11), text: num(t, 1) }, svg);
+    }
+    const bh = REAL.benchmark.future_sharpe;
+    s("line", { x1: x(bh), x2: x(bh), y1: m.t - 10, y2: H - m.b, stroke: cssVar("--ink-2"), "stroke-width": 1.5 }, svg);
+    s("text", { x: x(bh), y: m.t - 12, "text-anchor": "middle", fill: cssVar("--ink-2"), style: font(10.5, 600), text: `buy & hold ${bh.toFixed(2)}` }, svg);
+    s("text", { x: (m.l + W - m.r) / 2, y: H - 4, "text-anchor": "middle", fill: cssVar("--ink-2"), style: font(11.5, 600), text: "Annual Sharpe ratio" }, svg);
+    rows.forEach((r, i) => {
+      const cy = m.t + i * rowH + (stacked ? rowH - 14 : rowH / 2);
+      if (stacked) s("text", { x: m.l, y: cy - 14, fill: cssVar("--ink"), style: font(12, 600), text: REAL_NAMES[r.id] }, svg);
+      else s("text", { x: m.l - 12, y: cy + 4, "text-anchor": "end", fill: cssVar("--ink"), style: font(12, 600), text: REAL_NAMES[r.id] }, svg);
+      s("line", { x1: x(r.claimed_sharpe), x2: x(r.future_sharpe), y1: cy, y2: cy, stroke: cssVar("--ink-2"), "stroke-width": 2 }, svg);
+      s("circle", { cx: x(r.future_sharpe), cy, r: 5.5, fill: s1, stroke: card, "stroke-width": 2 }, svg);
+      s("circle", { cx: x(r.claimed_sharpe), cy, r: 5.5, fill: s2, stroke: card, "stroke-width": 2 }, svg);
+      const k = Object.values(r.audits).filter((v) => v.reject).length, n = Object.keys(r.audits).length;
+      const hit = s("rect", { x: 0, y: cy - rowH / 2, width: W, height: rowH, fill: "transparent" }, svg);
+      hit.addEventListener("pointermove", (e) => showTip(e, () => [tv(REAL_NAMES[r.id]), trow(s2, num(r.claimed_sharpe), `claimed (t ${num(r.claimed_t)})`),
+        trow(s1, num(r.future_sharpe), "real future"), tl(`rejected by ${k} of ${n} audits · rule ${r.selection}${r.assets ? " on " + r.assets.join(", ") : ""}`)]));
+      hit.addEventListener("pointerleave", hideTip);
+    });
+    $("#real-legend").replaceChildren(
+      el("span", {}, el("i", { style: { background: s2 } }), "Claimed Sharpe (research window)"),
+      el("span", {}, el("i", { style: { background: s1 } }), "Real future Sharpe"));
+    $("#real-table").replaceChildren(table(["Researcher", "Rule", "Claimed SR (t)", "Audits rejecting", "Future SR"],
+      rows.map((r) => [REAL_NAMES[r.id], r.selection + (r.assets ? " on " + r.assets.join(", ") : ""), `${num(r.claimed_sharpe)} (${num(r.claimed_t)})`,
+        `${Object.values(r.audits).filter((v) => v.reject).length} / ${Object.keys(r.audits).length}`, num(r.future_sharpe)]), 2));
+  }
+
   // ---------------------------------------------------------------- lifecycle
   function renderCharts() {
-    heroChart(); markets(); matrix(); scatter(); antidotes(); aucChart(); curse(); powerChart();
+    heroChart(); markets(); matrix(); scatter(); antidotes(); aucChart(); curse(); powerChart(); replication(); fixes(); realChart();
   }
   function renderAll() {
-    bind(); stats(); suspects(); detectives(); ladder(); renderCharts();
+    bind(); stats(); suspects(); detectives(); ladder(); scorecard(); renderCharts();
   }
 
   function themeButton() {
@@ -634,10 +795,12 @@
 
   async function main() {
     themeButton();
-    $$(".filters .chip").forEach((c) => c.addEventListener("click", () => { tierFilter = c.dataset.tier; applyTier(); }));
+    $$(".filters .tierchip").forEach((c) => c.addEventListener("click", () => { tierFilter = c.dataset.tier; applyTier(); }));
+    $$(".filters .run").forEach((c) => c.addEventListener("click", () => { RUN = c.dataset.run; matrix(); }));
     try {
-      const res = await fetch("data/site-data.json");
-      DATA = await res.json();
+      const [d, r] = await Promise.all([fetch("data/site-data.json"), fetch("data/real-case.json").catch(() => null)]);
+      DATA = await d.json();
+      REAL = r && r.ok ? await r.json() : null;
     } catch (e) {
       $("#hero-chart").textContent = "Could not load data/site-data.json (open the site through a web server, not file://).";
       return;

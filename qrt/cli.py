@@ -20,7 +20,7 @@ def main(argv: list[str] | None = None) -> None:
     run.add_argument("--out", default=None, help="output folder (default results/<config>-<timestamp>)")
     run.add_argument("--workers", type=int, default=16)
     run.add_argument("--final", action="store_true",
-                     help="the one-time final run: writes to results/final and locks it")
+                     help="a one-time final run: writes to results/final[-<config>] and locks it")
 
     rep = sub.add_parser("report", help="rebuild matrix.csv, auc.csv and report.html for a run folder")
     rep.add_argument("run_dir")
@@ -34,8 +34,9 @@ def main(argv: list[str] | None = None) -> None:
         from qrt.experiment import run_experiment
         from qrt.report import write_report
         cfg = load_config(args.config)
-        if args.final:
-            out = ROOT / "results" / "final"
+        if args.final:   # configs/final.toml -> results/final (v1); configs/v2.toml -> results/final-v2
+            stem = Path(args.config).stem
+            out = ROOT / "results" / ("final" if stem == "final" else f"final-{stem}")
         else:
             out = Path(args.out) if args.out else (
                 ROOT / "results" / f"{Path(args.config).stem}-{datetime.now():%Y%m%d-%H%M%S}")

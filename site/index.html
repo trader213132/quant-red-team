@@ -28,7 +28,7 @@
   <div class="wrap">
     <a class="wordmark" href="#top"><span class="dot"></span>Quant Red Team</a>
     <nav class="nav" aria-label="Sections">
-      <a href="#setup">Setup</a><a href="#suspects">Suspects</a><a href="#lineup">Lineup</a><a href="#exhibits">Exhibits</a><a href="#findings">Findings</a><a href="#method">Method</a>
+      <a href="#setup">Setup</a><a href="#suspects">Suspects</a><a href="#lineup">Lineup</a><a href="#exhibits">Exhibits</a><a href="#v2">v2</a><a href="#real">Real markets</a><a href="#findings">Findings</a><a href="paper/quant-red-team.pdf">Paper</a>
     </nav>
     <button class="iconbtn" id="theme" type="button" aria-label="Switch colour theme">◐ <span>Auto</span></button>
     <a class="iconbtn" id="repo" href="https://github.com/trader213132/quant-red-team">GitHub ↗</a>
@@ -44,6 +44,7 @@
         <div class="casefile rise"><span class="tag red">Case file 05 · Look-ahead</span><span class="tag ink">Simulated market · zero edge</span></div>
         <h1 class="rise">This backtest made <span class="strike" data-bind="heroGain">+935%</span>.<span class="small">Its real edge was zero.</span></h1>
         <p class="lede rise">Most people who try quant build a bot that hunts for trading edges. <b>Quant Red Team does the opposite.</b> It plants fake edges on purpose, then measures which audits catch them, how often each one wrongly rejects a real edge, and how much access an auditor needs.</p>
+        <div class="cta rise"><a class="btn primary" href="paper/quant-red-team.pdf">Read the paper (PDF)</a><a class="btn" href="#lineup">See the detection matrix ↓</a></div>
       </div>
       <div class="hero-chart rise">
         <div class="chart-head">
@@ -132,11 +133,17 @@
       </div>
     </div>
     <div class="card pad reveal">
+      <div class="filters" role="group" aria-label="Choose run">
+        <span class="label">Run</span>
+        <button class="chip run" type="button" data-run="v1" aria-pressed="true">v1 · 14 audits</button>
+        <button class="chip run" type="button" data-run="v2" aria-pressed="false">v2 replication · 16 audits</button>
+      </div>
       <div class="filters" role="group" aria-label="Show audits by tier">
-        <button class="chip" type="button" data-tier="all" aria-pressed="true">All tiers</button>
-        <button class="chip" type="button" data-tier="1" aria-pressed="false">Tier 1 · returns only</button>
-        <button class="chip" type="button" data-tier="2" aria-pressed="false">Tier 2 · trials disclosed</button>
-        <button class="chip" type="button" data-tier="3" aria-pressed="false">Tier 3 · re-run access</button>
+        <span class="label">Tier</span>
+        <button class="chip tierchip" type="button" data-tier="all" aria-pressed="true">All tiers</button>
+        <button class="chip tierchip" type="button" data-tier="1" aria-pressed="false">Tier 1 · returns only</button>
+        <button class="chip tierchip" type="button" data-tier="2" aria-pressed="false">Tier 2 · trials disclosed</button>
+        <button class="chip tierchip" type="button" data-tier="3" aria-pressed="false">Tier 3 · re-run access</button>
         <div class="scale" aria-hidden="true">0%<span class="bar" id="scale-bar"></span>100% rejected</div>
       </div>
       <div class="matrix-scroll"><div id="matrix"></div></div>
@@ -243,12 +250,86 @@
   </div>
 </section>
 
+
+<!-- ============================== V2 ============================== -->
+<section class="block" id="v2">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="exhibit">Exhibit H · Replication<small>v2 · fresh seed · pre-registered</small></div>
+      <div>
+        <h2>Run it again.<br>Same answer.</h2>
+        <p>v1 could have been one lucky seed. So the whole experiment ran again on a fresh seed: <span data-bind="v2claims">3,000</span> new claims from <span data-bind="v2markets">35,312</span> new markets. Two new audits, designed after seeing v1, came along. The hypotheses were written down <i>before</i> the run and are reported pass or fail.</p>
+      </div>
+    </div>
+    <div class="scorecard reveal" id="scorecard"></div>
+    <div class="two reveal" style="margin-top:28px">
+      <div class="card pad">
+        <div class="chart-head"><div><div class="chart-title">Every detection-matrix cell: v1 against v2</div><div class="chart-sub">Each dot is one researcher × audit rate · shaded band = within 10 points</div></div></div>
+        <div class="chart" id="replication"></div>
+        <details class="data"><summary>Data table</summary><div id="replication-table"></div></details>
+      </div>
+      <div>
+        <p class="note">All 134 cells replicated within sampling error. The detection matrix is a property of the audits, not of one set of random numbers.</p>
+        <p>The two failures matter just as much. Pre-registering means a hypothesis can fail in public, and that is what makes the passes believable.</p>
+      </div>
+    </div>
+
+    <div class="sec-head reveal" style="margin-top:96px">
+      <div class="exhibit">Exhibit I · New detectives<small>Designed after v1 · tested on v2</small></div>
+      <div>
+        <h2>Two fixes.<br>Half-fixed.</h2>
+        <p><b>DSR-eff</b> stops the Deflated Sharpe treating real differences between strategies as luck. Under the null every trial's true Sharpe is zero, so its bar uses that variance (1/T) and counts correlated trials as an <i>effective</i> number. <b>Full history</b> re-runs the claimed rule from the earliest available date, so a cherry-picked start can't hide the bad years.</p>
+      </div>
+    </div>
+    <div class="two even reveal">
+      <div class="card pad">
+        <div class="chart-head"><div><div class="chart-title">The Deflated Sharpe, before and after</div><div class="chart-sub">v2 claims · catch rate on fakes, false alarms on genuine mined edges</div></div></div>
+        <div class="legend" id="fix-legend"></div>
+        <div class="chart" id="fix-dsr"></div>
+        <details class="data"><summary>Data table</summary><div id="fix-dsr-table"></div></details>
+      </div>
+      <div class="card pad">
+        <div class="chart-head"><div><div class="chart-title">Catching the window picker</div><div class="chart-sub">v2 claims · catch rate on window-picker fakes · faded = more than 20% false alarms on real edges</div></div></div>
+        <div class="chart" id="fix-window"></div>
+        <details class="data"><summary>Data table</summary><div id="fix-window-table"></div></details>
+      </div>
+    </div>
+    <p class="note reveal" style="margin-top:18px">DSR-eff is now <i>usable</i>: false alarms on real mined edges fell from 100% to 15%. But it catches 70% of miners, where the Reality Check catches 87%. Full history never wrongly rejected a real edge, but it caught only half the window pickers, because the best start date usually covers most of the history anyway.</p>
+  </div>
+</section>
+
+<!-- ============================== REAL MARKETS ============================== -->
+<section class="block" id="real">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="exhibit">Exhibit J · Real markets<small>20 ETFs · 2005–2026</small></div>
+      <div>
+        <h2>Then we tried it<br>on real markets.</h2>
+        <p>The same researchers and audits ran on 20 liquid US ETFs: research on <span data-bind="realResearch">2005–2018</span>, then a look at what happened in the <span data-bind="realFuture">2019–2026</span> "future". There's no oracle in real markets, so each rule's real future stands in for the truth. That's one draw per researcher: a story, not statistics.</p>
+      </div>
+    </div>
+    <div class="two reveal">
+      <div class="card pad">
+        <div class="chart-head"><div><div class="chart-title">Claimed Sharpe in research vs what the rule did next</div><div class="chart-sub">Honest implementation in the future window · vertical line = buy and hold of all 20 ETFs</div></div></div>
+        <div class="legend" id="real-legend"></div>
+        <div class="chart" id="real-chart"></div>
+        <details class="data" open><summary>Data table</summary><div id="real-table"></div></details>
+      </div>
+      <div>
+        <p class="note">The look-ahead bug produced the best-looking backtest in the study, with a Sharpe of <span data-bind="realLookClaim">1.33</span>. Only the placebo and delay attacks rejected it, exactly as the simulation predicts. Then it lost money.</p>
+        <p>The miner found a long-only trend filter that really did keep working, but it trailed simply holding all 20 ETFs. Its "edge" was mostly the market going up. The placebo rejects it for exactly that reason: sign-randomised data has no upward drift.</p>
+        <p>Most flawed researchers never even reach a publishable claim on real data. Look-ahead does.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ============================== FINDINGS ============================== -->
 <section class="block" id="findings">
   <div class="wrap">
     <div class="sec-head reveal">
       <div class="exhibit">05 · Verdict<small>What the matrix says</small></div>
-      <div><h2>Nine findings.</h2></div>
+      <div><h2>Thirteen findings.</h2></div>
     </div>
     <ol class="findings reveal">
       <li><b>Returns alone tell you almost nothing.</b><span>The PSR caught 0%. The Deflated Sharpe with assumed trials caught most fakes only by rejecting 91% of honest real edges, and it caught 0% of look-ahead, whose fake Sharpe of 3.5 clears any bar.</span></li>
@@ -260,6 +341,10 @@
       <li><b>Window picking is the hardest selection flaw.</b><span>Choosing the best of 11 start dates turned zero edge into a claimed Sharpe of 1.05. The best usable audit caught 36%.</span></li>
       <li><b>Honest luck is invisible without new data.</b><span>No usable audit catches a lucky honest test. Forward tests catch it, but they also reject 79% of real edges after one year.</span></li>
       <li><b>Selection inflates even real edges.</b><span>Real mined edges were claimed at 1.22 against a true 0.69. The t ≥ 2 filter alone took honest real edges from 0.72 to 1.02.</span></li>
+      <li><b>It replicates.</b><span>On a fresh seed, all 134 cells landed within 10 points of v1 (largest gap 8). Pre-registered, and it passed.</span></li>
+      <li><b>The Deflated Sharpe can be half-fixed.</b><span>Counting correlated trials as an effective number cut false alarms on real mined edges from 100% to 15%, but it then caught only 70% of mined fakes. Pre-registered, and it failed the 80% bar.</span></li>
+      <li><b>Window picking survives everything usable.</b><span>Re-running from the earliest date caught 50% with zero false alarms: better, but still short. Pre-registered, and it failed.</span></li>
+      <li><b>Real markets agree.</b><span>On 20 real ETFs, the look-ahead bug's Sharpe of 1.33 got past every statistical audit. Only the placebo and delay attacks caught it, and it then lost money.</span></li>
     </ol>
     <p class="note" style="margin-top:28px">Practical rule: ask for every trial, and also re-run the pipeline with a one-day delay, double costs, delisted names restored, and placebo data. Statistics on the returns alone will not save you.</p>
   </div>
@@ -282,6 +367,7 @@
           <li>Final config hash <span class="hash" data-bind="configHash">b39faa28…</span></li>
           <li>Code hash at run time <span class="hash" data-bind="codeHash">a8897be1…</span></li>
           <li>Seed <span class="hash" data-bind="seed">314159265</span>, distinct from dev</li>
+          <li>v2: config <span class="hash" data-bind="v2config">d35a77ab…</span>, code <span class="hash" data-bind="v2code">be2b188f…</span>, seed <span class="hash" data-bind="v2seed">271828182</span></li>
           <li><span data-bind="tests">84</span> automated tests, including causality checks proving the honest engine never sees the future and the planted bugs really do</li>
           <li>Size checks: RC, SPA and the placebo reject ≤ 8% when there is truly no edge</li>
         </ul>
@@ -303,7 +389,7 @@
 python scripts/calibrate.py
 python -m qrt run --config configs/dev.toml
 python -m qrt report results/final</pre>
-        <p style="margin-top:10px">Read: <a data-repo="docs/RESULTS.md">RESULTS.md</a> · <a data-repo="docs/DECISIONS.md">DECISIONS.md</a> · <a data-repo="docs/superpowers/specs/2026-10-07-detection-matrix-design.md">design spec</a></p>
+        <p style="margin-top:10px">Read: <a href="paper/quant-red-team.pdf">the paper (PDF)</a> · <a data-repo="docs/RESULTS.md">RESULTS.md</a> · <a data-repo="docs/DECISIONS.md">DECISIONS.md</a> · <a data-repo="docs/superpowers/specs/2026-10-07-detection-matrix-design.md">design spec</a> · <a data-repo="docs/superpowers/specs/2026-10-07-v2-preregistration.md">v2 pre-registration</a></p>
       </div>
     </div>
   </div>
@@ -312,7 +398,7 @@ python -m qrt report results/final</pre>
 
 <footer>
   <div class="wrap">
-    <div><b>Quant Red Team</b> · v1 detection matrix · final run <span data-bind="date">2026-10-07</span> · <span data-bind="minutes">8.9</span> minutes on <span data-bind="workers">16</span> cores</div>
+    <div><b>Quant Red Team</b> · <a href="paper/quant-red-team.pdf">paper (PDF)</a> · v1 final run <span data-bind="date">2026-10-07</span> · <span data-bind="minutes">8.9</span> minutes on <span data-bind="workers">16</span> cores</div>
     <div>Built with <b>Claude</b> (Anthropic) writing the code. Every decision and who made it is in <a data-repo="docs/DECISIONS.md">DECISIONS.md</a>.</div>
   </div>
 </footer>

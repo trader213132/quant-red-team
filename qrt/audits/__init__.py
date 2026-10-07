@@ -1,4 +1,4 @@
-"""The auditors: fourteen ways to decide whether a claimed edge is credible.
+"""The auditors: sixteen ways (fourteen from v1, two added in v2) to decide whether a claimed edge is credible.
 
 Access tiers are enforced by construction. A tier-1 audit is handed only the reported returns, a tier-2
 audit also gets every trial the researcher ran, and a tier-3 audit can re-run the researcher's workflow
@@ -62,6 +62,7 @@ AUDITS: tuple[tuple[str, int, object], ...] = (
     ("psr", 1, tier1.psr_audit),
     ("dsr_assumed", 1, tier1.dsr_assumed),
     ("dsr", 2, tier2.dsr),
+    ("dsr_eff", 2, tier2.dsr_eff),          # v2
     ("pbo", 2, tier2.pbo),
     ("bonferroni", 2, tier2.bonferroni),
     ("reality_check", 2, tier2.reality_check),
@@ -71,6 +72,7 @@ AUDITS: tuple[tuple[str, int, object], ...] = (
     ("cost_stress", 3, tier3.cost_stress),
     ("pit_universe", 3, tier3.pit_universe),
     ("holdout", 3, tier3.holdout),
+    ("full_history", 3, tier3.full_history),  # v2
     ("forward_1y", 3, tier3.forward_1y),
     ("forward_3y", 3, tier3.forward_3y),
 )

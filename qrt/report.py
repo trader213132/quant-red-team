@@ -12,6 +12,11 @@ import numpy as np
 
 from qrt.matrix import AUDIT_NAMES, build_auc, build_matrix, load_cases, row_order, write_csv
 
+
+def _names(matrix) -> list[str]:
+    """Audit columns actually present in this matrix, in registry order."""
+    return list(dict.fromkeys(m["audit"] for m in matrix))
+
 ROWS = {
     "honest_null": ("Honest, no edge",
                     "Pre-registers one momentum rule (TSMOM-60) and backtests it once, correctly. The market has "
@@ -58,6 +63,10 @@ AUDITS = {
     "delay": ("Delay", "Re-run with every trade one day later."),
     "cost_stress": ("Cost×2", "Re-run at double the real trading cost."),
     "pit_universe": ("PIT", "Re-run with the delisted names put back (point-in-time universe)."),
+    "dsr_eff": ("DSR-eff", "v2: Deflated Sharpe whose bar is the best of N_eff independent zero-edge trials (correlated "
+                           "trials count less), using the null Sharpe variance 1/T."),
+    "full_history": ("Full hist", "v2: re-run the claimed rule from the earliest date the data allows, so a "
+                                  "cherry-picked start date can't hide the bad years."),
     "holdout": ("Holdout", "Let the process see only the first 70% of history, then test its pick on the last "
                            "30%."),
     "forward_1y": ("Fwd 1y", "Paper-trade the rule honestly on one year of brand-new data."),
@@ -131,17 +140,18 @@ def _cell_html(cell: dict, pred: float | None) -> str:
 
 def _matrix_table(matrix, rows, counts, preds) -> str:
     by = {(m["row"], m["audit"]): m for m in matrix}
+    names = _names(matrix)
     head1 = '<tr><th class="rowh" rowspan="2">Researcher</th>' + "".join(
-        f'<th class="tier t{t}" colspan="{sum(1 for a in AUDIT_NAMES if by[(rows[0], a)]["tier"] == t)}">'
+        f'<th class="tier t{t}" colspan="{sum(1 for a in names if by[(rows[0], a)]["tier"] == t)}">'
         f'Tier {t} · {TIERS[t]}</th>' for t in (1, 2, 3)) + "</tr>"
     head2 = "<tr>" + "".join(
-        f'<th class="aud" title="{escape(AUDITS[a][1])}">{escape(AUDITS[a][0])}</th>' for a in AUDIT_NAMES) + "</tr>"
+        f'<th class="aud" title="{escape(AUDITS[a][1])}">{escape(AUDITS[a][0])}</th>' for a in names) + "</tr>"
     body = []
     for row in rows:
         name, desc = ROWS.get(row, (row, ""))
         c = counts[row]
         truth = f'{c["FAKE"]} fake · {c["REAL"]} real' + (f' · {c["MARGINAL"]} marginal' if c["MARGINAL"] else "")
-        cells = "".join(_cell_html(by[(row, a)], preds.get((row, a))) for a in AUDIT_NAMES)
+        cells = "".join(_cell_html(by[(row, a)], preds.get((row, a))) for a in names)
         body.append(f'<tr><th class="rowh" title="{escape(desc)}"><div class="rn">{escape(name)}</div>'
                     f'<div class="rt">{truth}</div></th>{cells}</tr>')
     return f'<div class="scroll"><table class="matrix"><thead>{head1}{head2}</thead><tbody>{"".join(body)}</tbody></table></div>'
@@ -150,7 +160,7 @@ def _matrix_table(matrix, rows, counts, preds) -> str:
 def _audit_summary(matrix, auc_rows, rows, counts) -> str:
     fake_rows = [r for r in rows if counts[r]["FAKE"] >= MIN_N]
     lines = []
-    for a in AUDIT_NAMES:
+    for a in _names(matrix):
         cells = [m for m in matrix if m["audit"] == a]
         catches = [m["catch_rate"] for m in cells if m["row"] in fake_rows and m["n_fake"] >= MIN_N]
         fa_k = sum(m["false_alarms"] for m in cells)
@@ -172,7 +182,7 @@ FA_CAP = 0.20   # an audit that wrongly rejects more than 1 in 5 genuine edges i
 
 def pooled_false_alarms(matrix) -> dict[str, tuple[int, int]]:
     out = {}
-    for a in AUDIT_NAMES:
+    for a in _names(matrix):
         cells = [m for m in matrix if m["audit"] == a]
         out[a] = (sum(m["false_alarms"] for m in cells), sum(m["n_real"] for m in cells))
     return out
@@ -181,7 +191,7 @@ def pooled_false_alarms(matrix) -> dict[str, tuple[int, int]]:
 def _access_table(matrix, rows, counts) -> str:
     fa = pooled_false_alarms(matrix)
     usable = {a for a, (k, n) in fa.items() if n == 0 or k / n <= FA_CAP}
-    excluded = [f"{AUDITS[a][0]} ({100 * fa[a][0] / fa[a][1]:.1f}%)" for a in AUDIT_NAMES if a not in usable]
+    excluded = [f"{AUDITS[a][0]} ({100 * fa[a][0] / fa[a][1]:.1f}%)" for a in _names(matrix) if a not in usable]
     lines = []
     for row in rows:
         if counts[row]["FAKE"] < MIN_N:
@@ -274,7 +284,7 @@ def write_report(run_dir: Path, predictions: Path | None = None) -> Path:
     rates = " · ".join(f'{escape(ROWS.get(r, (r,))[0])}: {manifest["rows"][r]["claim_rate"]:.1%}'
                        for r in rows if r in manifest.get("rows", {}))
     glossary_rows = "".join(f"<dt>{escape(n)}</dt><dd>{escape(d)}</dd>" for n, d in ROWS.values())
-    glossary_audits = "".join(f"<dt>{escape(n)}</dt><dd>{escape(d)}</dd>" for n, d in AUDITS.values())
+    glossary_audits = "".join(f"<dt>{escape(AUDITS[a][0])}</dt><dd>{escape(AUDITS[a][1])}</dd>" for a in _names(matrix))
     html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Detection Matrix</title>
 <style>{CSS}</style></head><body><main>

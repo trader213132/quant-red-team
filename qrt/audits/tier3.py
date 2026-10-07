@@ -62,6 +62,15 @@ def holdout(ctx):
     return _result(score=t, reject=t < ctx.cfg.audits.attack_t, value=t)
 
 
+def full_history(ctx):
+    """v2 (designed after v1): re-run the claimed rule from the earliest date the data allows, through the
+    researcher's own pipeline. A start date chosen because it looked good does not survive this."""
+    sel = ctx.claim.selection
+    r = backtest(replace(sel, start=ctx.cfg.warmup), ctx.dataset)
+    t = t_stat(r)
+    return _result(score=t, reject=t < ctx.cfg.audits.attack_t, value=t)
+
+
 def _forward(ctx, days: int):
     """Paper-trade the claimed rule honestly on brand-new data from the same market."""
     from qrt.workflows import honest_selection

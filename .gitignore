@@ -5,3 +5,8 @@ __pycache__/
 # Dev runs are never quoted; only the locked final run is published as evidence.
 results/*
 !results/final/
+!results/final-v2/
+# Raw market data is not redistributed (provider terms).
+/data/
+# Local-only material (e.g. case studies of other projects).
+private/

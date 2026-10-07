@@ -106,7 +106,7 @@ def test_run_audits_returns_all_fourteen_and_is_deterministic():
     ctx = setup("asset_picker")
     a = run_audits(ctx.claim, ctx.researcher, ctx.dataset, CFG, seed=[1, 2, 3])
     b = run_audits(ctx.claim, ctx.researcher, ctx.dataset, CFG, seed=[1, 2, 3])
-    assert len(a) == 14 and a == b
+    assert len(a) == 16 and a == b
     assert a["pbo"].reject is not None                     # 20 trials -> PBO applies
 
 
